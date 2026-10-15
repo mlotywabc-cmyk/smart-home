@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home Automation</title>
+    <link rel="stylesheet" href="smart_house.css">
+</head>
+<body>
+
+    <!-- Login screen -->
+    <section id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <div class="brand-icon">⌂</div>
+            <h1>SmartHome</h1>
+            <p class="muted">Your home, under your control.</p>
+
+            <form id="loginForm">
+                <label for="username">Username</label>
+                <input id="username" type="text" placeholder="Enter username" required>
+
+                <label for="password">Password</label>
+                <input id="password" type="password" placeholder="Enter password" required>
+
+                <p id="loginMessage" class="message"></p>
+                <button class="primary-button full-width" type="submit">
+                    Sign in
+                </button>
+            </form>
+
+            <p class="login-hint">Demo login: admin / home123</p>
+        </div>
+    </section>
+
+    <!-- Main application -->
+    <div id="app" class="app hidden">
+
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-icon small">⌂</span>
+                <div>
+                    <h2>SmartHome</h2>
+                    <span>Automation System</span>
+                </div>
+            </div>
+
+            <p class="menu-heading">MAIN MENU</p>
+
+            <nav class="navigation">
+                <button class="nav-link active" data-page="dashboard">
+                    <span>▦</span> Dashboard
+                </button>
+                <button class="nav-link" data-page="devices">
+                    <span>◉</span> Devices
+                </button>
+                <button class="nav-link" data-page="climate">
+                    <span>♨</span> Climate Control
+                </button>
+                <button class="nav-link" data-page="security">
+                    <span>⌑</span> Security & RFID
+                </button>
+                <button class="nav-link" data-page="history">
+                    <span>◷</span> Event History
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="connection-indicator">
+                    <span class="status-dot"></span>
+                    <div>
+                        <p>Demo mode</p>
+                        <small>Local website</small>
+                    </div>
+                </div>
+
+                <button id="logoutButton" class="logout-button">
+                    ↪ Sign out
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">SMART HOME CONTROL</p>
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
+
+                <div class="topbar-right">
+                    <div class="date-display">
+                        <span id="currentDate">Loading date...</span>
+                        <strong id="currentTime">--:--:--</strong>
+                    </div>
+                    <div class="user-avatar">A</div>
+                </div>
+            </header>
+
+            <!-- Dashboard -->
+            <section id="dashboardPage" class="page">
+                <div class="welcome-row">
+                    <div>
+                        <h2>Welcome home!</h2>
+                        <p class="muted">Here is what is happening in your home.</p>
+                    </div>
+                    <span class="demo-badge">DEMO DATA</span>
+                </div>
+
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Connected devices</span>
+                            <span class="stat-icon">◉</span>
+                        </div>
+                        <h2 id="deviceCount">4</h2>
+                        <p class="muted">Devices available</p>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Devices switched on</span>
+                            <span class="stat-icon green">⌁</span>
+                        </div>
+                        <h2 id="activeCount">2</h2>
+                        <p class="muted">Currently active</p>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Room temperature</span>
+                            <span class="stat-icon orange">♨</span>
+                        </div>
+                        <h2><span id="dashboardTemperature">24.5</span>°C</h2>
+                        <p class="muted">Sample sensor reading</p>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Security status</span>
+                            <span class="stat-icon green">⌑</span>
+                        </div>
+                        <h2 id="securitySummary">Secure</h2>
+                        <p class="muted">RFID access simulation</p>
+                    </article>
+                </div>
+
+                <div class="content-grid">
+                    <article class="panel">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Device overview</h3>
+                                <p class="muted">Control your home devices.</p>
+                            </div>
+                            <button class="text-button" data-goto="devices">View all</button>
+                        </div>
+                        <div id="dashboardDevices" class="device-list"></div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Climate overview</h3>
+                                <p class="muted">Current room conditions.</p>
+                            </div>
+                            <span class="status-pill">Normal</span>
+                        </div>
+
+                        <div class="temperature-circle">
+                            <span>ROOM TEMPERATURE</span>
+                            <strong><span id="climateTemperature">24.5</span>°C</strong>
+                            <small>Sample reading</small>
+                        </div>
+
+                        <div class="climate-details">
+                            <div>
+                                <span>Humidity</span>
+                                <strong id="humidityValue">55%</strong>
+                            </div>
+                            <div>
+                                <span>Target temperature</span>
+                                <strong><span id="dashboardTarget">23</span>°C</strong>
+                            </div>
+                        </div>
+
+                        <button class="primary-button full-width" data-goto="climate">
+                            Manage climate
+                        </button>
+                    </article>
+                </div>
+
+                <article class="panel recent-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Recent activity</h3>
+                            <p class="muted">The latest actions in this demo.</p>
+                        </div>
+                        <button class="text-button" data-goto="history">View history</button>
+                    </div>
+                    <div id="dashboardEvents" class="event-list"></div>
+                </article>
+            </section>
+
+            <!-- Devices -->
+            <section id="devicesPage" class="page hidden">
+                <div class="section-intro">
+                    <h2>Device management</h2>
+                    <p class="muted">Switch devices on or off using the controls below.</p>
+                </div>
+                <div id="allDevices" class="device-grid"></div>
+            </section>
+
+            <!-- Climate -->
+            <section id="climatePage" class="page hidden">
+                <div class="section-intro">
+                    <h2>Climate control</h2>
+                    <p class="muted">View sample room readings and change your target temperature.</p>
+                </div>
+
+                <div class="climate-page-grid">
+                    <article class="panel large-climate-panel">
+                        <p class="eyebrow">CURRENT ROOM TEMPERATURE</p>
+                        <div class="large-temperature">
+                            <span id="largeTemperature">24.5</span><span>°C</span>
+                        </div>
+                        <p class="muted">This is a sample reading, not a live sensor measurement.</p>
+
+                        <div class="climate-metric-grid">
+                            <div class="metric-box">
+                                <span>Humidity</span>
+                                <strong id="largeHumidity">55%</strong>
+                            </div>
+                            <div class="metric-box">
+                                <span>Target temperature</span>
+                                <strong><span id="targetDisplay">23</span>°C</strong>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="panel">
+                        <h3>Temperature settings</h3>
+                        <p class="muted">Choose a target between 16°C and 30°C.</p>
+
+                        <div class="target-number">
+                            <span id="targetNumber">23</span>°C
+                        </div>
+
+                        <input id="temperatureSlider" class="temperature-slider"
+                               type="range" min="16" max="30" value="23">
+
+                        <div class="slider-labels">
+                            <span>16°C</span>
+                            <span>30°C</span>
+                        </div>
+
+                        <button id="saveTemperature" class="primary-button full-width">
+                            Save target temperature
+                        </button>
+                        <p id="temperatureMessage" class="message"></p>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Security -->
+            <section id="securityPage" class="page hidden">
+                <div class="section-intro">
+                    <h2>Security and RFID</h2>
+                    <p class="muted">Test access events using a simulated RFID card.</p>
+                </div>
+
+                <div class="security-grid">
+                    <article class="panel security-card">
+                        <div class="security-symbol">⌑</div>
+                        <h3>Door access control</h3>
+                        <p class="muted">Use the demo buttons to simulate an RFID scan.</p>
+
+                        <div class="door-status">
+                            <span id="doorStatusDot" class="status-dot"></span>
+                            <strong id="doorStatus">Door locked</strong>
+                        </div>
+
+                        <div class="button-stack">
+                            <button id="validRfidButton" class="primary-button full-width">
+                                Simulate authorised card
+                            </button>
+                            <button id="invalidRfidButton" class="secondary-button full-width">
+                                Simulate unknown card
+                            </button>
+                            <button id="lockDoorButton" class="secondary-button full-width">
+                                Lock door
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="panel">
+                        <h3>Access information</h3>
+                        <div class="info-row">
+                            <span>Access method</span>
+                            <strong>RFID card (simulated)</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Last scanned card</span>
+                            <strong id="lastCard">None</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Last access result</span>
+                            <strong id="lastAccessResult">No scan yet</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Door state</span>
+                            <strong id="doorStateInfo">Locked</strong>
+                        </div>
+                        <p class="notice">
+                            This page only simulates RFID events. It does not control a real door or card reader.
+                        </p>
+                    </article>
+                </div>
+            </section>
+
+            <!-- History -->
+            <section id="historyPage" class="page hidden">
+                <div class="section-intro history-heading">
+                    <div>
+                        <h2>Event history</h2>
+                        <p class="muted">Review actions performed in this browser session.</p>
+                    </div>
+                    <button id="clearHistoryButton" class="secondary-button">
+                        Clear history
+                    </button>
+                </div>
+
+                <article class="panel">
+                    <div class="history-table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Event</th>
+                                    <th>Details</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTable"></tbody>
+                        </table>
+                    </div>
+                    <p id="emptyHistory" class="empty-message hidden">No events recorded yet.</p>
+                </article>
+            </section>
+
+            <footer class="footer">
+                SmartHome Automation · Local demonstration website
+            </footer>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="smart_house.js"></script>
+</body>
+</html>
