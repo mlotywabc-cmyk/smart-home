@@ -1,8 +1,7 @@
 "use strict";
 
 // Smart Home backend address
-const API_BASE = "http://localhost:3000";
-
+const API_BASE = "https://smart-home-b1p5.onrender.com";
 // Demo login details
 const DEMO_USERNAME = "admin";
 const DEMO_PASSWORD = "home123";
