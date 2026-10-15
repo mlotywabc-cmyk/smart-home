@@ -1,8 +1,10 @@
+
 "use strict";
 
-// Smart Home backend address
+// Smart Home backend
 const API_BASE = "https://smart-home-b1p5.onrender.com";
-// Demo login details
+
+// Demo login
 const DEMO_USERNAME = "admin";
 const DEMO_PASSWORD = "home123";
 
@@ -13,7 +15,7 @@ const devices = [
         name: "Living Room Light",
         room: "Living room",
         icon: "☀",
-        on: true
+        on: false
     },
     {
         id: "bedroomLight",
@@ -27,7 +29,7 @@ const devices = [
         name: "Cooling Fan",
         room: "Living room",
         icon: "❄",
-        on: true
+        on: false
     },
     {
         id: "securityLight",
@@ -38,9 +40,14 @@ const devices = [
     }
 ];
 
-// State
-let currentTemperature = 24.5;
-let humidity = 55;
+// Sensor values
+let currentTemperature = null;
+let humidity = null;
+let rainValue = null;
+let rainDetected = null;
+let distanceCm = null;
+let lastSensorTimestamp = null;
+
 let targetTemperature = 23;
 let doorLocked = true;
 let lastCard = "None";
@@ -48,14 +55,14 @@ let lastAccessResult = "No scan yet";
 let events = [];
 let toastTimer;
 
-// Cached DOM elements
+// Cached elements
 const loginScreen = document.getElementById("loginScreen");
 const app = document.getElementById("app");
 const loginForm = document.getElementById("loginForm");
 const loginMessage = document.getElementById("loginMessage");
 const toast = document.getElementById("toast");
 
-// Start
+// Start website
 document.addEventListener("DOMContentLoaded", initialiseWebsite);
 
 function initialiseWebsite() {
@@ -66,7 +73,7 @@ function initialiseWebsite() {
 
     addEvent(
         "Website opened",
-        "SmartHome demonstration started.",
+        "SmartHome dashboard started.",
         "Success",
         "⌂"
     );
@@ -74,19 +81,22 @@ function initialiseWebsite() {
     renderAllDevices();
     updateDashboard();
     updateClimateDisplay();
+    updateSecurityDisplay();
     renderEvents();
 
-    // Load latest temperature + humidity from the backend
     loadLatestSensorReading();
-
-    // Refresh sensor readings every 10 seconds
     setInterval(loadLatestSensorReading, 10000);
+
+    loadLatestAccessEvent();
+    setInterval(loadLatestAccessEvent, 10000);
 }
 
 // Event listeners
 function addEventListeners() {
     loginForm.addEventListener("submit", handleLogin);
-    document.getElementById("logoutButton").addEventListener("click", logout);
+
+    document.getElementById("logoutButton")
+        .addEventListener("click", logout);
 
     document.querySelectorAll(".nav-link").forEach(button => {
         button.addEventListener("click", () => {
@@ -119,29 +129,43 @@ function addEventListeners() {
         .addEventListener("click", clearHistory);
 }
 
-// Login / logout
+// Login
 function handleLogin(event) {
     event.preventDefault();
 
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
+    const username =
+        document.getElementById("username").value.trim();
 
-    if (username === DEMO_USERNAME && password === DEMO_PASSWORD) {
+    const password =
+        document.getElementById("password").value;
+
+    if (
+        username === DEMO_USERNAME &&
+        password === DEMO_PASSWORD
+    ) {
         loginScreen.classList.add("hidden");
         app.classList.remove("hidden");
 
         loginMessage.textContent = "";
+
         document.getElementById("username").value = "";
         document.getElementById("password").value = "";
 
-        addEvent("User login", "Administrator signed in.", "Success", "↪");
+        addEvent(
+            "User login",
+            "Administrator signed in.",
+            "Success",
+            "↪"
+        );
 
         updateDashboard();
         renderEvents();
 
         showToast("Welcome to your SmartHome dashboard.");
     } else {
-        loginMessage.textContent = "Incorrect username or password.";
+        loginMessage.textContent =
+            "Incorrect username or password.";
+
         loginMessage.className = "message error";
 
         addEvent(
@@ -160,7 +184,6 @@ function logout() {
     app.classList.add("hidden");
 
     showPage("dashboard");
-
     showToast("You have signed out.");
 }
 
@@ -174,15 +197,14 @@ function showPage(pageName) {
         history: "historyPage"
     };
 
-    if (!pages[pageName]) {
-        return;
-    }
+    if (!pages[pageName]) return;
 
     Object.values(pages).forEach(id => {
         document.getElementById(id).classList.add("hidden");
     });
 
-    document.getElementById(pages[pageName]).classList.remove("hidden");
+    document.getElementById(pages[pageName])
+        .classList.remove("hidden");
 
     document.querySelectorAll(".nav-link").forEach(button => {
         button.classList.toggle(
@@ -199,7 +221,8 @@ function showPage(pageName) {
         history: "Event History"
     };
 
-    document.getElementById("pageTitle").textContent = titles[pageName];
+    document.getElementById("pageTitle").textContent =
+        titles[pageName];
 
     if (pageName === "history") {
         renderEvents();
@@ -228,8 +251,11 @@ function updateClock() {
 
 // Devices
 function renderAllDevices() {
-    const allDevicesContainer = document.getElementById("allDevices");
-    const dashboardDevices = document.getElementById("dashboardDevices");
+    const allDevicesContainer =
+        document.getElementById("allDevices");
+
+    const dashboardDevices =
+        document.getElementById("dashboardDevices");
 
     allDevicesContainer.innerHTML = "";
     dashboardDevices.innerHTML = "";
@@ -265,9 +291,7 @@ function createDeviceRow(device) {
     state.className = "device-state" + (device.on ? " on" : "");
     state.textContent = device.on ? "On" : "Off";
 
-    const toggle = createToggle(device);
-
-    row.append(icon, description, state, toggle);
+    row.append(icon, description, state, createToggle(device));
 
     return row;
 }
@@ -305,15 +329,16 @@ function createDeviceCard(device) {
     bottom.className = "device-card-bottom";
 
     const statusText = document.createElement("span");
-    statusText.textContent = device.on ? "Device is running" : "Device is off";
+    statusText.textContent = device.on
+        ? "Device is running"
+        : "Device is off";
 
-    const toggle = createToggle(device);
-
-    bottom.append(statusText, toggle);
+    bottom.append(statusText, createToggle(device));
     card.append(top, name, room, bottom);
 
     return card;
 }
+
 
 function createToggle(device) {
     const button = document.createElement("button");
@@ -324,8 +349,40 @@ function createToggle(device) {
     button.setAttribute("aria-checked", String(device.on));
     button.setAttribute("aria-label", "Switch " + device.name);
 
-    button.addEventListener("click", () => {
-        device.on = !device.on;
+    button.addEventListener("click", async () => {
+        const newState = !device.on;
+
+        // Only the physical fan is connected at this stage.
+        if (device.id === "fan") {
+            try {
+                const response = await fetch(
+                    API_BASE + "/api/device-commands",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            command: newState ? "fan_on" : "fan_off"
+                        })
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.message || "Command could not be sent."
+                    );
+                }
+            } catch (error) {
+                console.error("Fan command failed:", error);
+                showToast("Could not send the fan command. Check the connection.");
+                return;
+            }
+        }
+
+        device.on = newState;
 
         const action = device.on ? "switched on" : "switched off";
 
@@ -346,59 +403,78 @@ function createToggle(device) {
     return button;
 }
 
+
 function updateActiveDeviceCount() {
-    const activeCount = devices.filter(device => device.on).length;
-    document.getElementById("deviceCount").textContent = devices.length;
-    document.getElementById("activeCount").textContent = activeCount;
+    document.getElementById("deviceCount").textContent =
+        devices.length;
+
+    document.getElementById("activeCount").textContent =
+        devices.filter(device => device.on).length;
 }
 
 // Dashboard
 function updateDashboard() {
-    const activeCount = devices.filter(device => device.on).length;
+    updateActiveDeviceCount();
 
-    document.getElementById("deviceCount").textContent = devices.length;
-    document.getElementById("activeCount").textContent = activeCount;
+    setText(
+        "dashboardTemperature",
+        formatNumber(currentTemperature, 1)
+    );
 
-    document.getElementById("dashboardTemperature").textContent =
-        currentTemperature.toFixed(1);
+    setText(
+        "climateTemperature",
+        formatNumber(currentTemperature, 1)
+    );
 
-    document.getElementById("climateTemperature").textContent =
-        currentTemperature.toFixed(1);
+    setText(
+        "humidityValue",
+        humidity === null ? "--" : humidity + "%"
+    );
 
-    document.getElementById("humidityValue").textContent = humidity + "%";
-    document.getElementById("dashboardTarget").textContent = targetTemperature;
+    setText("dashboardTarget", targetTemperature);
 
-    document.getElementById("securitySummary").textContent =
-        doorLocked ? "Secure" : "Unlocked";
+    setText(
+        "securitySummary",
+        doorLocked ? "Locked" : "Unlocked"
+    );
 
+    updateSensorDisplay();
     renderRecentEvents();
 }
 
-// Climate
+// Climate display
 function updateClimateDisplay() {
-    document.getElementById("largeTemperature").textContent =
-        currentTemperature.toFixed(1);
+    setText("largeTemperature", formatNumber(currentTemperature, 1));
 
-    document.getElementById("largeHumidity").textContent = humidity + "%";
+    setText(
+        "largeHumidity",
+        humidity === null ? "--" : humidity + "%"
+    );
 
-    document.getElementById("targetDisplay").textContent = targetTemperature;
-    document.getElementById("targetNumber").textContent = targetTemperature;
+    setText("targetDisplay", targetTemperature);
+    setText("targetNumber", targetTemperature);
+    setText("dashboardTarget", targetTemperature);
 }
 
 function updateTargetPreview() {
-    const slider = document.getElementById("temperatureSlider");
-    document.getElementById("targetNumber").textContent = slider.value;
+    setText(
+        "targetNumber",
+        document.getElementById("temperatureSlider").value
+    );
 }
 
 function saveTemperature() {
     const slider = document.getElementById("temperatureSlider");
     targetTemperature = Number(slider.value);
 
-    document.getElementById("targetDisplay").textContent = targetTemperature;
-    document.getElementById("dashboardTarget").textContent = targetTemperature;
+    updateClimateDisplay();
+    updateDashboard();
 
     const message = document.getElementById("temperatureMessage");
-    message.textContent = "Target temperature saved to " + targetTemperature + "°C.";
+
+    message.textContent =
+        "Target temperature saved to " + targetTemperature + "°C.";
+
     message.className = "message success";
 
     addEvent(
@@ -412,7 +488,182 @@ function saveTemperature() {
     showToast("Target temperature set to " + targetTemperature + "°C.");
 }
 
-// Security / RFID
+// Sensor display
+function updateSensorDisplay() {
+    setText("sensorTemperature", formatNumber(currentTemperature, 1));
+
+    setText(
+        "sensorHumidity",
+        humidity === null ? "--" : humidity
+    );
+
+    setText(
+        "rainValue",
+        rainValue === null ? "--" : rainValue
+    );
+
+    setText(
+        "rainDetection",
+        rainDetected === null
+            ? "No data"
+            : rainDetected
+                ? "Rain detected"
+                : "No rain detected"
+    );
+
+    setText(
+        "rainStatus",
+        rainDetected === null
+            ? "Waiting..."
+            : rainDetected
+                ? "Rain detected"
+                : "No rain"
+    );
+
+    setText(
+        "distanceValue",
+        formatNumber(distanceCm, 2)
+    );
+
+    setText(
+        "distanceStatus",
+        distanceCm === null
+            ? "No data"
+            : distanceCm < 10
+                ? "Very close"
+                : distanceCm < 30
+                    ? "Object nearby"
+                    : "Clear"
+    );
+
+    setText(
+        "lastSensorUpdate",
+        lastSensorTimestamp
+            ? new Date(lastSensorTimestamp).toLocaleString("en-ZA")
+            : "Not received yet"
+    );
+}
+
+// Load latest sensor data from backend
+async function loadLatestSensorReading() {
+    const connectionStatus =
+        document.getElementById("connectionStatus");
+
+    const badge =
+        document.getElementById("sensorConnectionBadge");
+
+    try {
+        const response = await fetch(
+            API_BASE + "/api/sensors/latest",
+            { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+            throw new Error("No sensor reading was returned");
+        }
+
+        currentTemperature = toNumberOrNull(data.temperature);
+        humidity = toNumberOrNull(data.humidity);
+        rainValue = toNumberOrNull(data.rain_value);
+        distanceCm = toNumberOrNull(data.distance_cm);
+
+        if (typeof data.rain_detected === "boolean") {
+            rainDetected = data.rain_detected;
+        } else if (data.rain_detected === 0 || data.rain_detected === 1) {
+            rainDetected = data.rain_detected === 1;
+        } else if (
+            typeof data.rain_detected === "string" &&
+            ["true", "false"].includes(data.rain_detected.toLowerCase())
+        ) {
+            rainDetected = data.rain_detected.toLowerCase() === "true";
+        } else {
+            rainDetected = null;
+        }
+
+        lastSensorTimestamp = data.recorded_at || null;
+
+        if (connectionStatus) {
+            connectionStatus.textContent = "Backend connected";
+        }
+
+        if (badge) {
+            badge.textContent = "LIVE SENSOR DATA";
+        }
+
+        setText("sensorUpdateStatus", "Data received");
+
+        updateDashboard();
+        updateClimateDisplay();
+
+        console.log("Latest ESP32 sensor data:", data);
+
+    } catch (error) {
+        console.error("Could not load sensor data:", error);
+
+        if (connectionStatus) {
+            connectionStatus.textContent = "Connection problem";
+        }
+
+        if (badge) {
+            badge.textContent = "SENSOR CONNECTION ISSUE";
+        }
+
+        setText("sensorUpdateStatus", "Unable to refresh");
+    }
+}
+
+// Load latest RFID event from backend
+async function loadLatestAccessEvent() {
+    try {
+        const response = await fetch(
+            API_BASE + "/api/access-events/latest",
+            { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+            return;
+        }
+
+        if (!data.card_uid || !data.event_type) {
+            return;
+        }
+
+        lastCard = String(data.card_uid);
+
+        const eventType = String(data.event_type).toUpperCase();
+
+        const granted =
+            data.access_granted === true ||
+            data.access_granted === 1 ||
+            String(data.access_granted).toLowerCase() === "true";
+
+        lastAccessResult = granted
+            ? "Access granted"
+            : "Access denied";
+
+        doorLocked = !granted;
+
+        updateSecurityDisplay();
+        updateDashboard();
+
+    } catch (error) {
+        console.warn("Could not load latest RFID event:", error);
+    }
+}
+
+// Security / RFID demonstration buttons
 function simulateValidCard() {
     lastCard = "CARD-4821";
     lastAccessResult = "Access granted";
@@ -420,7 +671,7 @@ function simulateValidCard() {
 
     addEvent(
         "RFID scan",
-        "Authorised card " + lastCard + " granted access.",
+        "Demo authorised card " + lastCard + " granted access.",
         "Success",
         "⌑"
     );
@@ -429,7 +680,7 @@ function simulateValidCard() {
     updateDashboard();
     renderEvents();
 
-    showToast("Access granted. Door unlocked.");
+    showToast("Demo access granted.");
 }
 
 function simulateInvalidCard() {
@@ -439,7 +690,7 @@ function simulateInvalidCard() {
 
     addEvent(
         "RFID scan",
-        "Unknown card " + lastCard + " was denied.",
+        "Demo unknown card " + lastCard + " was denied.",
         "Warning",
         "!"
     );
@@ -448,7 +699,7 @@ function simulateInvalidCard() {
     updateDashboard();
     renderEvents();
 
-    showToast("Access denied. Unknown card.");
+    showToast("Demo access denied.");
 }
 
 function lockDoor() {
@@ -457,7 +708,7 @@ function lockDoor() {
 
     addEvent(
         "Door locked",
-        "Door was locked manually.",
+        "Door was locked in the website demonstration.",
         "Success",
         "⌑"
     );
@@ -466,33 +717,30 @@ function lockDoor() {
     updateDashboard();
     renderEvents();
 
-    showToast("Door locked.");
+    showToast("Website door status set to locked.");
 }
 
 function updateSecurityDisplay() {
-    document.getElementById("lastCard").textContent = lastCard;
-    document.getElementById("lastAccessResult").textContent = lastAccessResult;
+    setText("lastCard", lastCard);
+    setText("lastAccessResult", lastAccessResult);
 
     const statusEl = document.getElementById("doorStatus");
     const infoEl = document.getElementById("doorStateInfo");
-    const dotEl = document.getElementById("doorStatusDot");
-    const doorStatusContainer = statusEl.closest(".door-status");
+
+    const container = statusEl.closest(".door-status");
 
     if (doorLocked) {
         statusEl.textContent = "Door locked";
         infoEl.textContent = "Locked";
-        doorStatusContainer.classList.remove("unlocked");
+        container.classList.remove("unlocked");
     } else {
         statusEl.textContent = "Door unlocked";
         infoEl.textContent = "Unlocked";
-        doorStatusContainer.classList.add("unlocked");
+        container.classList.add("unlocked");
     }
-
-    // dot is styled by CSS via .unlocked class, but keep reference tidy
-    void dotEl;
 }
 
-// Events
+// Event history
 function addEvent(title, details, status, icon) {
     events.unshift({
         time: new Date().toLocaleTimeString("en-ZA", {
@@ -500,10 +748,10 @@ function addEvent(title, details, status, icon) {
             minute: "2-digit",
             second: "2-digit"
         }),
-        title: title,
-        details: details,
-        status: status,
-        icon: icon
+        title,
+        details,
+        status,
+        icon
     });
 
     if (events.length > 40) {
@@ -538,8 +786,11 @@ function renderEvents() {
 
         const status = document.createElement("td");
         const badge = document.createElement("span");
-        badge.className = "table-status" +
+
+        badge.className =
+            "table-status" +
             (event.status === "Warning" ? " warning" : "");
+
         badge.textContent = event.status;
         status.appendChild(badge);
 
@@ -587,39 +838,43 @@ function clearHistory() {
     showToast("Event history cleared.");
 }
 
-// Toast
+// Toast messages
 function showToast(message) {
     toast.textContent = message;
     toast.classList.add("show");
 
     clearTimeout(toastTimer);
+
     toastTimer = setTimeout(() => {
         toast.classList.remove("show");
     }, 2600);
 }
 
-// Backend: latest sensor reading
-async function loadLatestSensorReading() {
-    try {
-        const response = await fetch(API_BASE + "/api/sensors/latest");
+// Helpers
+function setText(id, value) {
+    const element = document.getElementById(id);
 
-        if (!response.ok) {
-            console.warn("Sensor endpoint returned", response.status);
-            return;
-        }
-
-        const data = await response.json();
-
-        if (typeof data.temperature === "number") {
-            currentTemperature = data.temperature;
-        }
-        if (typeof data.humidity === "number") {
-            humidity = data.humidity;
-        }
-
-        updateDashboard();
-        updateClimateDisplay();
-    } catch (error) {
-        console.warn("Could not load sensor reading:", error.message);
+    if (element) {
+        element.textContent = value;
     }
+}
+
+function toNumberOrNull(value) {
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+        return null;
+    }
+
+    const number = Number(value);
+
+    return Number.isFinite(number) ? number : null;
+}
+
+function formatNumber(value, decimals) {
+    return value === null
+        ? "--"
+        : value.toFixed(decimals);
 }

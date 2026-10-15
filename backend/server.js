@@ -1,3 +1,5 @@
+```javascript
+"use strict";
 
 const express = require("express");
 const { Pool } = require("pg");
@@ -7,8 +9,9 @@ require("dotenv").config();
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 
+// Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL
@@ -16,7 +19,7 @@ const pool = new Pool({
     : false
 });
 
-// Prepare the database
+// Create the database tables
 async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sensor_readings (
@@ -30,9 +33,12 @@ async function initializeDatabase() {
     );
 
     ALTER TABLE sensor_readings
+      ADD COLUMN IF NOT EXISTS temperature DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS humidity DOUBLE PRECISION,
       ADD COLUMN IF NOT EXISTS rain_value INTEGER,
       ADD COLUMN IF NOT EXISTS rain_detected BOOLEAN,
-      ADD COLUMN IF NOT EXISTS distance_cm DOUBLE PRECISION;
+      ADD COLUMN IF NOT EXISTS distance_cm DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT NOW();
 
     CREATE TABLE IF NOT EXISTS access_events (
       id BIGSERIAL PRIMARY KEY,
@@ -48,31 +54,111 @@ async function initializeDatabase() {
       status VARCHAR(50) NOT NULL,
       recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS device_commands (
+      id BIGSERIAL PRIMARY KEY,
+      command TEXT NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      delivered_at TIMESTAMPTZ
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_device_commands_pending
+      ON device_commands (id)
+      WHERE status = 'pending';
   `);
 
-  console.log("Database is ready.");
+  console.log("Database tables are ready.");
 }
 
-// Check that the API is running
+// Check the device token sent by the ESP32
+function requireDeviceToken(req, res, next) {
+  const expectedToken = process.env.DEVICE_TOKEN;
+  const suppliedToken = req.get("X-Device-Token");
+
+  if (!expectedToken) {
+    return res.status(503).json({
+      error: "Device token is not configured on the server"
+    });
+  }
+
+  if (
+    typeof suppliedToken !== "string" ||
+    suppliedToken !== expectedToken
+  ) {
+    return res.status(401).json({
+      error: "Unauthorized device"
+    });
+  }
+
+  next();
+}
+
+// Commands allowed by the server
+const ALLOWED_COMMANDS = new Set([
+  "door_open",
+  "door_close",
+  "garage_open",
+  "garage_close",
+  "rain_open",
+  "rain_close",
+  "rain_auto",
+  "fan_on",
+  "fan_off",
+  "fan_auto"
+]);
+
+function validateCommand(command) {
+  if (typeof command !== "string") {
+    return false;
+  }
+
+  const normalized = command.trim().toLowerCase();
+
+  if (ALLOWED_COMMANDS.has(normalized)) {
+    return true;
+  }
+
+  const match = normalized.match(/^temperature:(\d+(?:\.\d+)?)$/);
+
+  if (!match) {
+    return false;
+  }
+
+  const value = Number(match[1]);
+
+  return Number.isFinite(value) && value >= 0 && value <= 60;
+}
+
+// API home route
 app.get("/", (req, res) => {
-  res.json({ message: "Smart Home API is running" });
+  res.json({
+    message: "Smart Home API is running"
+  });
 });
 
-// Check the database connection
+// Check the API and database connection
 app.get("/api/health", async (req, res) => {
   try {
-    const result = await pool.query("SELECT NOW() AS server_time");
+    const result = await pool.query(
+      "SELECT NOW() AS server_time"
+    );
+
     res.json({
       status: "connected",
       databaseTime: result.rows[0].server_time
     });
   } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ status: "error" });
+    console.error("Health check error:", error.message);
+
+    res.status(500).json({
+      status: "error",
+      error: "Database connection failed"
+    });
   }
 });
 
-// Receive readings from the sensors
+// Save sensor readings
 app.post("/api/sensors", async (req, res) => {
   try {
     const {
@@ -83,48 +169,65 @@ app.post("/api/sensors", async (req, res) => {
       distance_cm
     } = req.body;
 
-    const readings = [
+    const numericFields = {
       temperature,
       humidity,
       rain_value,
       distance_cm
-    ];
+    };
+
+    for (const [field, value] of Object.entries(numericFields)) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        (typeof value !== "number" || !Number.isFinite(value))
+      ) {
+        return res.status(400).json({
+          error: field + " must be a valid number or null"
+        });
+      }
+    }
 
     if (
-      readings.some(
-        value => value != null &&
-          (typeof value !== "number" || !Number.isFinite(value))
-      ) ||
-      (rain_detected != null && typeof rain_detected !== "boolean") ||
-      readings.every(value => value == null) &&
-        rain_detected == null
+      rain_value !== undefined &&
+      rain_value !== null &&
+      !Number.isInteger(rain_value)
     ) {
       return res.status(400).json({
-        error: "Provide at least one valid sensor reading."
+        error: "rain_value must be an integer"
       });
     }
 
     if (
-      rain_value != null &&
-      !Number.isInteger(rain_value)
+      rain_detected !== undefined &&
+      rain_detected !== null &&
+      typeof rain_detected !== "boolean"
     ) {
       return res.status(400).json({
-        error: "rain_value must be an integer."
+        error: "rain_detected must be true, false or null"
+      });
+    }
+
+    const values = [
+      temperature ?? null,
+      humidity ?? null,
+      rain_value ?? null,
+      rain_detected ?? null,
+      distance_cm ?? null
+    ];
+
+    if (values.every(value => value === null)) {
+      return res.status(400).json({
+        error: "Provide at least one valid sensor reading"
       });
     }
 
     const result = await pool.query(
       `INSERT INTO sensor_readings
-       (temperature, humidity, rain_value, rain_detected, distance_cm)
+        (temperature, humidity, rain_value, rain_detected, distance_cm)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [
-        temperature ?? null,
-        humidity ?? null,
-        rain_value ?? null,
-        rain_detected ?? null,
-        distance_cm ?? null
-      ]
+      values
     );
 
     res.status(201).json({
@@ -132,7 +235,8 @@ app.post("/api/sensors", async (req, res) => {
       reading: result.rows[0]
     });
   } catch (error) {
-    console.error(error.message);
+    console.error("Sensor upload error:", error.message);
+
     res.status(500).json({
       error: "Could not save sensor readings"
     });
@@ -143,14 +247,16 @@ app.post("/api/sensors", async (req, res) => {
 app.get("/api/sensors/latest", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM sensor_readings
+      SELECT *
+      FROM sensor_readings
       ORDER BY recorded_at DESC, id DESC
       LIMIT 1
     `);
 
     res.json(result.rows[0] ?? null);
   } catch (error) {
-    console.error(error.message);
+    console.error("Latest sensor error:", error.message);
+
     res.status(500).json({
       error: "Could not load sensor readings"
     });
@@ -161,24 +267,30 @@ app.get("/api/sensors/latest", async (req, res) => {
 app.get("/api/sensors", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM sensor_readings
+      SELECT *
+      FROM sensor_readings
       ORDER BY recorded_at DESC, id DESC
       LIMIT 100
     `);
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error.message);
+    console.error("Sensor history error:", error.message);
+
     res.status(500).json({
       error: "Could not load sensor history"
     });
   }
 });
 
-// Receive RFID and door events
+// Save an RFID access event
 app.post("/api/access-events", async (req, res) => {
   try {
-    const { card_uid, event_type, access_granted } = req.body;
+    const {
+      card_uid,
+      event_type,
+      access_granted
+    } = req.body;
 
     if (
       typeof event_type !== "string" ||
@@ -190,17 +302,28 @@ app.post("/api/access-events", async (req, res) => {
     }
 
     if (
-      access_granted != null &&
+      card_uid !== undefined &&
+      card_uid !== null &&
+      typeof card_uid !== "string"
+    ) {
+      return res.status(400).json({
+        error: "card_uid must be a string or null"
+      });
+    }
+
+    if (
+      access_granted !== undefined &&
+      access_granted !== null &&
       typeof access_granted !== "boolean"
     ) {
       return res.status(400).json({
-        error: "access_granted must be true or false"
+        error: "access_granted must be true, false or null"
       });
     }
 
     const result = await pool.query(
       `INSERT INTO access_events
-       (card_uid, event_type, access_granted)
+        (card_uid, event_type, access_granted)
        VALUES ($1, $2, $3)
        RETURNING *`,
       [
@@ -215,43 +338,48 @@ app.post("/api/access-events", async (req, res) => {
       event: result.rows[0]
     });
   } catch (error) {
-    console.error(error.message);
+    console.error("Access event error:", error.message);
+
     res.status(500).json({
       error: "Could not save access event"
     });
   }
 });
 
-// Get the latest RFID access event
+// Get the latest RFID event
 app.get("/api/access-events/latest", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM access_events
+      SELECT *
+      FROM access_events
       ORDER BY recorded_at DESC, id DESC
       LIMIT 1
     `);
 
     res.json(result.rows[0] ?? null);
   } catch (error) {
-    console.error(error.message);
+    console.error("Latest access event error:", error.message);
+
     res.status(500).json({
       error: "Could not load latest access event"
     });
   }
 });
 
-// Get RFID access event history
+// Get RFID event history
 app.get("/api/access-events", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM access_events
+      SELECT *
+      FROM access_events
       ORDER BY recorded_at DESC, id DESC
       LIMIT 100
     `);
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error.message);
+    console.error("Access history error:", error.message);
+
     res.status(500).json({
       error: "Could not load access events"
     });
@@ -286,14 +414,15 @@ app.post("/api/devices", async (req, res) => {
       device: result.rows[0]
     });
   } catch (error) {
-    console.error(error.message);
+    console.error("Device status error:", error.message);
+
     res.status(500).json({
       error: "Could not save device status"
     });
   }
 });
 
-// Get latest status for each device
+// Get the latest status for each device
 app.get("/api/devices", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -305,23 +434,133 @@ app.get("/api/devices", async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error.message);
+    console.error("Device status read error:", error.message);
+
     res.status(500).json({
       error: "Could not load device status"
     });
   }
 });
 
-// Start the server after preparing the database
+// Queue a command sent from the website
+app.post("/api/device-commands", async (req, res) => {
+  try {
+    const { command } = req.body;
+
+    if (!validateCommand(command)) {
+      return res.status(400).json({
+        error: "Invalid command"
+      });
+    }
+
+    const normalizedCommand = command.trim().toLowerCase();
+
+    const result = await pool.query(
+      `INSERT INTO device_commands (command)
+       VALUES ($1)
+       RETURNING id, command, status, created_at`,
+      [normalizedCommand]
+    );
+
+    res.status(201).json({
+      message: "Command queued for the ESP32",
+      command: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Command queue error:", error.message);
+
+    res.status(500).json({
+      error: "Could not queue device command"
+    });
+  }
+});
+
+// Let the ESP32 fetch the next pending command
+app.get(
+  "/api/device-commands/next",
+  requireDeviceToken,
+  async (req, res) => {
+    let client;
+
+    try {
+      client = await pool.connect();
+
+      await client.query("BEGIN");
+
+      const result = await client.query(`
+        SELECT id, command
+        FROM device_commands
+        WHERE status = 'pending'
+        ORDER BY id ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      `);
+
+      if (result.rows.length === 0) {
+        await client.query("COMMIT");
+
+        return res.json({
+          command: "none"
+        });
+      }
+
+      const pendingCommand = result.rows[0];
+
+      await client.query(
+        `UPDATE device_commands
+         SET status = 'delivered',
+             delivered_at = NOW()
+         WHERE id = $1`,
+        [pendingCommand.id]
+      );
+
+      await client.query("COMMIT");
+
+      res.json({
+        id: pendingCommand.id,
+        command: pendingCommand.command
+      });
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Rollback error:", rollbackError.message);
+        }
+      }
+
+      console.error("Command delivery error:", error.message);
+
+      res.status(500).json({
+        error: "Could not retrieve device command"
+      });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+);
+
+// Start the server after the database is ready
 const PORT = process.env.PORT || 3000;
 
-initializeDatabase()
-  .then(() => {
+async function startServer() {
+  try {
+    await initializeDatabase();
+
     app.listen(PORT, () => {
       console.log(`Smart Home API running on port ${PORT}`);
     });
-  })
-  .catch(error => {
-    console.error("Database initialization failed:", error.message);
+  } catch (error) {
+    console.error(
+      "Database initialization failed:",
+      error.message
+    );
+
     process.exit(1);
-  });
+  }
+}
+
+startServer();
+```
