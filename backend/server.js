@@ -16,6 +16,43 @@ const pool = new Pool({
     : false
 });
 
+// Prepare the database
+async function initializeDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sensor_readings (
+      id BIGSERIAL PRIMARY KEY,
+      temperature DOUBLE PRECISION,
+      humidity DOUBLE PRECISION,
+      rain_value INTEGER,
+      rain_detected BOOLEAN,
+      distance_cm DOUBLE PRECISION,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE sensor_readings
+      ADD COLUMN IF NOT EXISTS rain_value INTEGER,
+      ADD COLUMN IF NOT EXISTS rain_detected BOOLEAN,
+      ADD COLUMN IF NOT EXISTS distance_cm DOUBLE PRECISION;
+
+    CREATE TABLE IF NOT EXISTS access_events (
+      id BIGSERIAL PRIMARY KEY,
+      card_uid VARCHAR(100),
+      event_type VARCHAR(100) NOT NULL,
+      access_granted BOOLEAN,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS device_status (
+      id BIGSERIAL PRIMARY KEY,
+      device_name VARCHAR(100) NOT NULL,
+      status VARCHAR(50) NOT NULL,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  console.log("Database is ready.");
+}
+
 // Check that the API is running
 app.get("/", (req, res) => {
   res.json({ message: "Smart Home API is running" });
@@ -35,67 +72,106 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
-// Receive temperature and humidity from the ESP32
+// Receive readings from the sensors
 app.post("/api/sensors", async (req, res) => {
   try {
-    const { temperature, humidity } = req.body;
+    const {
+      temperature,
+      humidity,
+      rain_value,
+      rain_detected,
+      distance_cm
+    } = req.body;
+
+    const readings = [
+      temperature,
+      humidity,
+      rain_value,
+      distance_cm
+    ];
 
     if (
-      (temperature != null && !Number.isFinite(temperature)) ||
-      (humidity != null && !Number.isFinite(humidity)) ||
-      (temperature == null && humidity == null)
+      readings.some(
+        value => value != null &&
+          (typeof value !== "number" || !Number.isFinite(value))
+      ) ||
+      (rain_detected != null && typeof rain_detected !== "boolean") ||
+      readings.every(value => value == null) &&
+        rain_detected == null
     ) {
       return res.status(400).json({
-        error: "Provide a valid temperature or humidity reading."
+        error: "Provide at least one valid sensor reading."
+      });
+    }
+
+    if (
+      rain_value != null &&
+      !Number.isInteger(rain_value)
+    ) {
+      return res.status(400).json({
+        error: "rain_value must be an integer."
       });
     }
 
     const result = await pool.query(
-      `INSERT INTO sensor_readings (temperature, humidity)
-       VALUES ($1, $2)
+      `INSERT INTO sensor_readings
+       (temperature, humidity, rain_value, rain_detected, distance_cm)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [temperature ?? null, humidity ?? null]
+      [
+        temperature ?? null,
+        humidity ?? null,
+        rain_value ?? null,
+        rain_detected ?? null,
+        distance_cm ?? null
+      ]
     );
 
     res.status(201).json({
-      message: "Sensor reading saved",
+      message: "Sensor readings saved",
       reading: result.rows[0]
     });
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not save sensor reading" });
+    res.status(500).json({
+      error: "Could not save sensor readings"
+    });
   }
 });
 
 // Get the latest sensor readings
 app.get("/api/sensors/latest", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM sensor_readings
-       ORDER BY recorded_at DESC
-       LIMIT 1`
-    );
+    const result = await pool.query(`
+      SELECT * FROM sensor_readings
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT 1
+    `);
 
     res.json(result.rows[0] ?? null);
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not load sensor reading" });
+    res.status(500).json({
+      error: "Could not load sensor readings"
+    });
   }
 });
 
 // Get sensor history
 app.get("/api/sensors", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM sensor_readings
-       ORDER BY recorded_at DESC
-       LIMIT 100`
-    );
+    const result = await pool.query(`
+      SELECT * FROM sensor_readings
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT 100
+    `);
 
     res.json(result.rows);
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not load sensor history" });
+    res.status(500).json({
+      error: "Could not load sensor history"
+    });
   }
 });
 
@@ -104,7 +180,10 @@ app.post("/api/access-events", async (req, res) => {
   try {
     const { card_uid, event_type, access_granted } = req.body;
 
-    if (typeof event_type !== "string" || !event_type.trim()) {
+    if (
+      typeof event_type !== "string" ||
+      !event_type.trim()
+    ) {
       return res.status(400).json({
         error: "event_type is required"
       });
@@ -124,7 +203,11 @@ app.post("/api/access-events", async (req, res) => {
        (card_uid, event_type, access_granted)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [card_uid ?? null, event_type.trim(), access_granted ?? null]
+      [
+        card_uid ?? null,
+        event_type.trim(),
+        access_granted ?? null
+      ]
     );
 
     res.status(201).json({
@@ -133,23 +216,45 @@ app.post("/api/access-events", async (req, res) => {
     });
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not save access event" });
+    res.status(500).json({
+      error: "Could not save access event"
+    });
   }
 });
 
-// Get access event history
+// Get the latest RFID access event
+app.get("/api/access-events/latest", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM access_events
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT 1
+    `);
+
+    res.json(result.rows[0] ?? null);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      error: "Could not load latest access event"
+    });
+  }
+});
+
+// Get RFID access event history
 app.get("/api/access-events", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM access_events
-       ORDER BY recorded_at DESC
-       LIMIT 100`
-    );
+    const result = await pool.query(`
+      SELECT * FROM access_events
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT 100
+    `);
 
     res.json(result.rows);
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not load access events" });
+    res.status(500).json({
+      error: "Could not load access events"
+    });
   }
 });
 
@@ -159,8 +264,10 @@ app.post("/api/devices", async (req, res) => {
     const { device_name, status } = req.body;
 
     if (
-      typeof device_name !== "string" || !device_name.trim() ||
-      typeof status !== "string" || !status.trim()
+      typeof device_name !== "string" ||
+      !device_name.trim() ||
+      typeof status !== "string" ||
+      !status.trim()
     ) {
       return res.status(400).json({
         error: "device_name and status are required"
@@ -180,7 +287,9 @@ app.post("/api/devices", async (req, res) => {
     });
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not save device status" });
+    res.status(500).json({
+      error: "Could not save device status"
+    });
   }
 });
 
@@ -197,12 +306,22 @@ app.get("/api/devices", async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: "Could not load device status" });
+    res.status(500).json({
+      error: "Could not load device status"
+    });
   }
 });
 
+// Start the server after preparing the database
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Smart Home API running on port ${PORT}`);
-});
+initializeDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Smart Home API running on port ${PORT}`);
+    });
+  })
+  .catch(error => {
+    console.error("Database initialization failed:", error.message);
+    process.exit(1);
+  });
