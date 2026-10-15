@@ -1,4 +1,4 @@
-```javascript
+
 "use strict";
 
 const express = require("express");
@@ -563,4 +563,3 @@ async function startServer() {
 }
 
 startServer();
-```
