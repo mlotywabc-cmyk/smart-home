@@ -15,28 +15,62 @@ const devices = [
         name: "Living Room Light",
         room: "Living room",
         icon: "☀",
-        on: false
+        on: false,
+        type: "switch"
     },
     {
         id: "bedroomLight",
         name: "Bedroom Light",
         room: "Bedroom",
         icon: "☼",
-        on: false
+        on: false,
+        type: "switch"
     },
     {
         id: "fan",
         name: "Cooling Fan",
         room: "Living room",
         icon: "❄",
-        on: false
+        on: false,
+        type: "switch"
     },
     {
         id: "securityLight",
         name: "Security Light",
         room: "Outside",
         icon: "⌑",
-        on: false
+        on: false,
+        type: "switch"
+    },
+    {
+        id: "frontDoor",
+        name: "Front Door",
+        room: "Entrance",
+        icon: "🚪",
+        on: false,
+        type: "servo",
+        openCommand: "door_open",
+        closeCommand: "door_close"
+    },
+    {
+        id: "rainCover",
+        name: "Rain Cover",
+        room: "Window",
+        icon: "☂",
+        on: false,
+        type: "servo",
+        openCommand: "rain_open",
+        closeCommand: "rain_close"
+    },
+    {
+        id: "garageDoor",
+        name: "Garage Door",
+        room: "Garage",
+        icon: "🚗",
+        on: false,
+        type: "servo",
+        openCommand: "garage_open",
+        closeCommand: "garage_close"
     }
 ];
 
@@ -268,6 +302,7 @@ function renderAllDevices() {
     updateActiveDeviceCount();
 }
 
+// Create a device row on the dashboard
 function createDeviceRow(device) {
     const row = document.createElement("div");
     row.className = "device-row";
@@ -288,14 +323,27 @@ function createDeviceRow(device) {
     description.append(name, room);
 
     const state = document.createElement("span");
-    state.className = "device-state" + (device.on ? " on" : "");
-    state.textContent = device.on ? "On" : "Off";
+    state.className =
+        "device-state" + (device.on ? " on" : "");
 
-    row.append(icon, description, state, createToggle(device));
+    if (device.type === "servo") {
+        state.textContent = device.on ? "Open" : "Closed";
+    } else {
+        state.textContent = device.on ? "On" : "Off";
+    }
+
+    row.append(icon, description, state);
+
+    if (device.type === "servo") {
+        row.appendChild(createServoControls(device));
+    } else {
+        row.appendChild(createToggle(device));
+    }
 
     return row;
 }
 
+// Create a device card on the Devices page
 function createDeviceCard(device) {
     const card = document.createElement("article");
     card.className = "device-card";
@@ -309,7 +357,12 @@ function createDeviceCard(device) {
 
     const state = document.createElement("span");
     state.className = "status-pill";
-    state.textContent = device.on ? "On" : "Off";
+
+    if (device.type === "servo") {
+        state.textContent = device.on ? "Open" : "Closed";
+    } else {
+        state.textContent = device.on ? "On" : "Off";
+    }
 
     if (!device.on) {
         state.style.color = "#94a599";
@@ -329,17 +382,139 @@ function createDeviceCard(device) {
     bottom.className = "device-card-bottom";
 
     const statusText = document.createElement("span");
-    statusText.textContent = device.on
-        ? "Device is running"
-        : "Device is off";
 
-    bottom.append(statusText, createToggle(device));
+    if (device.type === "servo") {
+        statusText.textContent = device.on
+            ? "Motor is open"
+            : "Motor is closed";
+
+        bottom.append(
+            statusText,
+            createServoControls(device)
+        );
+    } else {
+        statusText.textContent = device.on
+            ? "Device is running"
+            : "Device is off";
+
+        bottom.append(statusText, createToggle(device));
+    }
+
     card.append(top, name, room, bottom);
 
     return card;
 }
 
+// Create Open and Close buttons for servo motors
+function createServoControls(device) {
+    const controls = document.createElement("div");
+    controls.className = "servo-controls";
 
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.textContent = "Open";
+    openButton.className = "servo-open-button";
+
+    openButton.style.padding = "8px 14px";
+    openButton.style.marginRight = "6px";
+    openButton.style.cursor = "pointer";
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.textContent = "Close";
+    closeButton.className = "servo-close-button";
+
+    closeButton.style.padding = "8px 14px";
+    closeButton.style.cursor = "pointer";
+
+    openButton.disabled = device.on;
+    closeButton.disabled = !device.on;
+
+    openButton.addEventListener("click", () => {
+        controlServo(device, true);
+    });
+
+    closeButton.addEventListener("click", () => {
+        controlServo(device, false);
+    });
+
+    controls.append(openButton, closeButton);
+
+    return controls;
+}
+
+// Send an Open or Close command to the ESP32 through Render
+async function controlServo(device, open) {
+    const command = open
+        ? device.openCommand
+        : device.closeCommand;
+
+    const action = open ? "opened" : "closed";
+
+    try {
+        showToast("Sending command to " + device.name + "...");
+
+        const response = await fetch(
+            API_BASE + "/api/device-commands",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    command: command
+                })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                result.message || "Command could not be sent."
+            );
+        }
+
+        device.on = open;
+
+        addEvent(
+            "Servo command sent",
+            device.name + " " + action + ". Command: " + command,
+            "Success",
+            device.icon
+        );
+
+        renderAllDevices();
+        updateDashboard();
+        renderEvents();
+
+        showToast(
+            device.name + " " + action + " command sent."
+        );
+
+    } catch (error) {
+        console.error(
+            "Servo command failed for " + device.name + ":",
+            error
+        );
+
+        addEvent(
+            "Servo command failed",
+            "Could not send the command to " + device.name + ".",
+            "Warning",
+            "!"
+        );
+
+        renderEvents();
+
+        showToast(
+            "Could not control " + device.name +
+            ". Check the backend connection."
+        );
+    }
+}
+
+// On/Off controls for lights and fan
 function createToggle(device) {
     const button = document.createElement("button");
 
@@ -352,7 +527,7 @@ function createToggle(device) {
     button.addEventListener("click", async () => {
         const newState = !device.on;
 
-        // Only the physical fan is connected at this stage.
+        // The physical fan is connected to the backend.
         if (device.id === "fan") {
             try {
                 const response = await fetch(
@@ -377,14 +552,20 @@ function createToggle(device) {
                 }
             } catch (error) {
                 console.error("Fan command failed:", error);
-                showToast("Could not send the fan command. Check the connection.");
+
+                showToast(
+                    "Could not send the fan command. Check the connection."
+                );
+
                 return;
             }
         }
 
         device.on = newState;
 
-        const action = device.on ? "switched on" : "switched off";
+        const action = device.on
+            ? "switched on"
+            : "switched off";
 
         addEvent(
             "Device updated",
@@ -403,13 +584,14 @@ function createToggle(device) {
     return button;
 }
 
-
+// Device counts
 function updateActiveDeviceCount() {
-    document.getElementById("deviceCount").textContent =
-        devices.length;
+    setText("deviceCount", devices.length);
 
-    document.getElementById("activeCount").textContent =
-        devices.filter(device => device.on).length;
+    setText(
+        "activeCount",
+        devices.filter(device => device.on).length
+    );
 }
 
 // Dashboard
@@ -444,7 +626,10 @@ function updateDashboard() {
 
 // Climate display
 function updateClimateDisplay() {
-    setText("largeTemperature", formatNumber(currentTemperature, 1));
+    setText(
+        "largeTemperature",
+        formatNumber(currentTemperature, 1)
+    );
 
     setText(
         "largeHumidity",
@@ -465,12 +650,14 @@ function updateTargetPreview() {
 
 function saveTemperature() {
     const slider = document.getElementById("temperatureSlider");
+
     targetTemperature = Number(slider.value);
 
     updateClimateDisplay();
     updateDashboard();
 
-    const message = document.getElementById("temperatureMessage");
+    const message =
+        document.getElementById("temperatureMessage");
 
     message.textContent =
         "Target temperature saved to " + targetTemperature + "°C.";
@@ -485,12 +672,18 @@ function saveTemperature() {
     );
 
     renderEvents();
-    showToast("Target temperature set to " + targetTemperature + "°C.");
+
+    showToast(
+        "Target temperature set to " + targetTemperature + "°C."
+    );
 }
 
 // Sensor display
 function updateSensorDisplay() {
-    setText("sensorTemperature", formatNumber(currentTemperature, 1));
+    setText(
+        "sensorTemperature",
+        formatNumber(currentTemperature, 1)
+    );
 
     setText(
         "sensorHumidity",
@@ -564,7 +757,11 @@ async function loadLatestSensorReading() {
 
         const data = await response.json();
 
-        if (!data || typeof data !== "object" || Array.isArray(data)) {
+        if (
+            !data ||
+            typeof data !== "object" ||
+            Array.isArray(data)
+        ) {
             throw new Error("No sensor reading was returned");
         }
 
@@ -575,13 +772,17 @@ async function loadLatestSensorReading() {
 
         if (typeof data.rain_detected === "boolean") {
             rainDetected = data.rain_detected;
-        } else if (data.rain_detected === 0 || data.rain_detected === 1) {
+        } else if (
+            data.rain_detected === 0 ||
+            data.rain_detected === 1
+        ) {
             rainDetected = data.rain_detected === 1;
         } else if (
             typeof data.rain_detected === "string" &&
             ["true", "false"].includes(data.rain_detected.toLowerCase())
         ) {
-            rainDetected = data.rain_detected.toLowerCase() === "true";
+            rainDetected =
+                data.rain_detected.toLowerCase() === "true";
         } else {
             rainDetected = null;
         }
@@ -632,7 +833,11 @@ async function loadLatestAccessEvent() {
 
         const data = await response.json();
 
-        if (!data || typeof data !== "object" || Array.isArray(data)) {
+        if (
+            !data ||
+            typeof data !== "object" ||
+            Array.isArray(data)
+        ) {
             return;
         }
 
@@ -641,8 +846,6 @@ async function loadLatestAccessEvent() {
         }
 
         lastCard = String(data.card_uid);
-
-        const eventType = String(data.event_type).toUpperCase();
 
         const granted =
             data.access_granted === true ||
@@ -659,7 +862,10 @@ async function loadLatestAccessEvent() {
         updateDashboard();
 
     } catch (error) {
-        console.warn("Could not load latest RFID event:", error);
+        console.warn(
+            "Could not load latest RFID event:",
+            error
+        );
     }
 }
 
@@ -727,16 +933,24 @@ function updateSecurityDisplay() {
     const statusEl = document.getElementById("doorStatus");
     const infoEl = document.getElementById("doorStateInfo");
 
+    if (!statusEl || !infoEl) return;
+
     const container = statusEl.closest(".door-status");
 
     if (doorLocked) {
         statusEl.textContent = "Door locked";
         infoEl.textContent = "Locked";
-        container.classList.remove("unlocked");
+
+        if (container) {
+            container.classList.remove("unlocked");
+        }
     } else {
         statusEl.textContent = "Door unlocked";
         infoEl.textContent = "Unlocked";
-        container.classList.add("unlocked");
+
+        if (container) {
+            container.classList.add("unlocked");
+        }
     }
 }
 
@@ -762,6 +976,8 @@ function addEvent(title, details, status, icon) {
 function renderEvents() {
     const table = document.getElementById("historyTable");
     const empty = document.getElementById("emptyHistory");
+
+    if (!table || !empty) return;
 
     table.innerHTML = "";
 
@@ -801,6 +1017,9 @@ function renderEvents() {
 
 function renderRecentEvents() {
     const container = document.getElementById("dashboardEvents");
+
+    if (!container) return;
+
     container.innerHTML = "";
 
     events.slice(0, 4).forEach(event => {
@@ -833,13 +1052,17 @@ function renderRecentEvents() {
 
 function clearHistory() {
     events = [];
+
     renderEvents();
     renderRecentEvents();
+
     showToast("Event history cleared.");
 }
 
 // Toast messages
 function showToast(message) {
+    if (!toast) return;
+
     toast.textContent = message;
     toast.classList.add("show");
 
