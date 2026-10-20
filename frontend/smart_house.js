@@ -1,14 +1,20 @@
 
 "use strict";
 
-// Smart Home backend
+// =====================================================
+// 1. SMART HOME BACKEND
+// =====================================================
+
 const API_BASE = "https://smart-home-b1p5.onrender.com";
 
 // Demo login
 const DEMO_USERNAME = "admin";
 const DEMO_PASSWORD = "home123";
 
-// Device data
+// =====================================================
+// 2. DEVICE DATA
+// =====================================================
+
 const devices = [
     {
         id: "livingLight",
@@ -74,7 +80,10 @@ const devices = [
     }
 ];
 
-// Sensor values
+// =====================================================
+// 3. SENSOR AND SYSTEM VARIABLES
+// =====================================================
+
 let currentTemperature = null;
 let humidity = null;
 let rainValue = null;
@@ -89,14 +98,17 @@ let lastAccessResult = "No scan yet";
 let events = [];
 let toastTimer;
 
-// Cached elements
+// Cached HTML elements
 const loginScreen = document.getElementById("loginScreen");
 const app = document.getElementById("app");
 const loginForm = document.getElementById("loginForm");
 const loginMessage = document.getElementById("loginMessage");
 const toast = document.getElementById("toast");
 
-// Start website
+// =====================================================
+// 4. INITIALISE WEBSITE
+// =====================================================
+
 document.addEventListener("DOMContentLoaded", initialiseWebsite);
 
 function initialiseWebsite() {
@@ -125,12 +137,20 @@ function initialiseWebsite() {
     setInterval(loadLatestAccessEvent, 10000);
 }
 
-// Event listeners
-function addEventListeners() {
-    loginForm.addEventListener("submit", handleLogin);
+// =====================================================
+// 5. EVENT LISTENERS
+// =====================================================
 
-    document.getElementById("logoutButton")
-        .addEventListener("click", logout);
+function addEventListeners() {
+    if (loginForm) {
+        loginForm.addEventListener("submit", handleLogin);
+    }
+
+    const logoutButton = document.getElementById("logoutButton");
+
+    if (logoutButton) {
+        logoutButton.addEventListener("click", logout);
+    }
 
     document.querySelectorAll(".nav-link").forEach(button => {
         button.addEventListener("click", () => {
@@ -144,26 +164,68 @@ function addEventListeners() {
         });
     });
 
-    document.getElementById("temperatureSlider")
-        .addEventListener("input", updateTargetPreview);
+    const temperatureSlider =
+        document.getElementById("temperatureSlider");
 
-    document.getElementById("saveTemperature")
-        .addEventListener("click", saveTemperature);
+    if (temperatureSlider) {
+        temperatureSlider.addEventListener(
+            "input",
+            updateTargetPreview
+        );
+    }
 
-    document.getElementById("validRfidButton")
-        .addEventListener("click", simulateValidCard);
+    const saveTemperatureButton =
+        document.getElementById("saveTemperature");
 
-    document.getElementById("invalidRfidButton")
-        .addEventListener("click", simulateInvalidCard);
+    if (saveTemperatureButton) {
+        saveTemperatureButton.addEventListener(
+            "click",
+            saveTemperature
+        );
+    }
 
-    document.getElementById("lockDoorButton")
-        .addEventListener("click", lockDoor);
+    const validRfidButton =
+        document.getElementById("validRfidButton");
 
-    document.getElementById("clearHistoryButton")
-        .addEventListener("click", clearHistory);
+    if (validRfidButton) {
+        validRfidButton.addEventListener(
+            "click",
+            simulateValidCard
+        );
+    }
+
+    const invalidRfidButton =
+        document.getElementById("invalidRfidButton");
+
+    if (invalidRfidButton) {
+        invalidRfidButton.addEventListener(
+            "click",
+            simulateInvalidCard
+        );
+    }
+
+    const lockDoorButton =
+        document.getElementById("lockDoorButton");
+
+    if (lockDoorButton) {
+        lockDoorButton.addEventListener("click", lockDoor);
+    }
+
+    const clearHistoryButton =
+        document.getElementById("clearHistoryButton");
+
+    if (clearHistoryButton) {
+        clearHistoryButton.addEventListener(
+            "click",
+            clearHistory
+        );
+    }
 }
 
-// Login
+// =====================================================
+// 6. LOGIN AND LOGOUT
+// =====================================================
+
 function handleLogin(event) {
     event.preventDefault();
 
@@ -221,7 +283,10 @@ function logout() {
     showToast("You have signed out.");
 }
 
-// Navigation
+// =====================================================
+// 7. NAVIGATION
+// =====================================================
+
 function showPage(pageName) {
     const pages = {
         dashboard: "dashboardPage",
@@ -234,11 +299,18 @@ function showPage(pageName) {
     if (!pages[pageName]) return;
 
     Object.values(pages).forEach(id => {
-        document.getElementById(id).classList.add("hidden");
+        const page = document.getElementById(id);
+
+        if (page) {
+            page.classList.add("hidden");
+        }
     });
 
-    document.getElementById(pages[pageName])
-        .classList.remove("hidden");
+    const selectedPage = document.getElementById(pages[pageName]);
+
+    if (selectedPage) {
+        selectedPage.classList.remove("hidden");
+    }
 
     document.querySelectorAll(".nav-link").forEach(button => {
         button.classList.toggle(
@@ -255,35 +327,44 @@ function showPage(pageName) {
         history: "Event History"
     };
 
-    document.getElementById("pageTitle").textContent =
-        titles[pageName];
+    setText("pageTitle", titles[pageName]);
 
     if (pageName === "history") {
         renderEvents();
     }
 }
 
-// Clock
+// =====================================================
+// 8. CLOCK
+// =====================================================
+
 function updateClock() {
     const now = new Date();
 
-    document.getElementById("currentDate").textContent =
+    setText(
+        "currentDate",
         now.toLocaleDateString("en-ZA", {
             weekday: "short",
             day: "numeric",
             month: "short",
             year: "numeric"
-        });
+        })
+    );
 
-    document.getElementById("currentTime").textContent =
+    setText(
+        "currentTime",
         now.toLocaleTimeString("en-ZA", {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit"
-        });
+        })
+    );
 }
 
-// Devices
+// =====================================================
+// 9. DEVICE DISPLAY
+// =====================================================
+
 function renderAllDevices() {
     const allDevicesContainer =
         document.getElementById("allDevices");
@@ -291,18 +372,32 @@ function renderAllDevices() {
     const dashboardDevices =
         document.getElementById("dashboardDevices");
 
-    allDevicesContainer.innerHTML = "";
-    dashboardDevices.innerHTML = "";
+    if (allDevicesContainer) {
+        allDevicesContainer.innerHTML = "";
+    }
+
+    if (dashboardDevices) {
+        dashboardDevices.innerHTML = "";
+    }
 
     devices.forEach(device => {
-        allDevicesContainer.appendChild(createDeviceCard(device));
-        dashboardDevices.appendChild(createDeviceRow(device));
+        if (allDevicesContainer) {
+            allDevicesContainer.appendChild(
+                createDeviceCard(device)
+            );
+        }
+
+        if (dashboardDevices) {
+            dashboardDevices.appendChild(
+                createDeviceRow(device)
+            );
+        }
     });
 
     updateActiveDeviceCount();
 }
 
-// Create a device row on the dashboard
+// Create device row on dashboard
 function createDeviceRow(device) {
     const row = document.createElement("div");
     row.className = "device-row";
@@ -323,14 +418,13 @@ function createDeviceRow(device) {
     description.append(name, room);
 
     const state = document.createElement("span");
+
     state.className =
         "device-state" + (device.on ? " on" : "");
 
-    if (device.type === "servo") {
-        state.textContent = device.on ? "Open" : "Closed";
-    } else {
-        state.textContent = device.on ? "On" : "Off";
-    }
+    state.textContent = device.type === "servo"
+        ? (device.on ? "Open" : "Closed")
+        : (device.on ? "On" : "Off");
 
     row.append(icon, description, state);
 
@@ -343,7 +437,7 @@ function createDeviceRow(device) {
     return row;
 }
 
-// Create a device card on the Devices page
+// Create device card on Devices page
 function createDeviceCard(device) {
     const card = document.createElement("article");
     card.className = "device-card";
@@ -358,11 +452,9 @@ function createDeviceCard(device) {
     const state = document.createElement("span");
     state.className = "status-pill";
 
-    if (device.type === "servo") {
-        state.textContent = device.on ? "Open" : "Closed";
-    } else {
-        state.textContent = device.on ? "On" : "Off";
-    }
+    state.textContent = device.type === "servo"
+        ? (device.on ? "Open" : "Closed")
+        : (device.on ? "On" : "Off");
 
     if (!device.on) {
         state.style.color = "#94a599";
@@ -405,7 +497,10 @@ function createDeviceCard(device) {
     return card;
 }
 
-// Create Open and Close buttons for servo motors
+// =====================================================
+// 10. SERVO CONTROLS
+// =====================================================
+
 function createServoControls(device) {
     const controls = document.createElement("div");
     controls.className = "servo-controls";
@@ -443,7 +538,6 @@ function createServoControls(device) {
     return controls;
 }
 
-// Send an Open or Close command to the ESP32 through Render
 async function controlServo(device, open) {
     const command = open
         ? device.openCommand
@@ -467,7 +561,7 @@ async function controlServo(device, open) {
             }
         );
 
-        const result = await response.json();
+        const result = await readResponse(response);
 
         if (!response.ok) {
             throw new Error(
@@ -479,7 +573,8 @@ async function controlServo(device, open) {
 
         addEvent(
             "Servo command sent",
-            device.name + " " + action + ". Command: " + command,
+            device.name + " " + action +
+            ". Command: " + command,
             "Success",
             device.icon
         );
@@ -514,22 +609,59 @@ async function controlServo(device, open) {
     }
 }
 
-// On/Off controls for lights and fan
+// =====================================================
+// 11. LIGHT AND FAN SWITCHES
+// =====================================================
+
+// These command names MUST match the Arduino code.
+const DEVICE_COMMANDS = {
+    bedroomLight: {
+        on: "bedroom_light_on",
+        off: "bedroom_light_off"
+    },
+
+    livingLight: {
+        on: "living_light_on",
+        off: "living_light_off"
+    },
+
+    fan: {
+        on: "fan_on",
+        off: "fan_off"
+    }
+};
+
 function createToggle(device) {
     const button = document.createElement("button");
 
-    button.className = "toggle" + (device.on ? " is-on" : "");
+    button.className =
+        "toggle" + (device.on ? " is-on" : "");
+
     button.type = "button";
     button.setAttribute("role", "switch");
     button.setAttribute("aria-checked", String(device.on));
     button.setAttribute("aria-label", "Switch " + device.name);
 
     button.addEventListener("click", async () => {
-        const newState = !device.on;
+        // Prevent repeated clicks while a command is being sent.
+        if (button.disabled) return;
 
-        // The physical fan is connected to the backend.
-        if (device.id === "fan") {
+        const newState = !device.on;
+        const commandSet = DEVICE_COMMANDS[device.id];
+
+        // Physical lights and fan must receive backend commands.
+        if (commandSet) {
+            const command = newState
+                ? commandSet.on
+                : commandSet.off;
+
+            button.disabled = true;
+
             try {
+                showToast(
+                    "Sending command to " + device.name + "..."
+                );
+
                 const response = await fetch(
                     API_BASE + "/api/device-commands",
                     {
@@ -538,38 +670,78 @@ function createToggle(device) {
                             "Content-Type": "application/json"
                         },
                         body: JSON.stringify({
-                            command: newState ? "fan_on" : "fan_off"
+                            command: command
                         })
                     }
                 );
 
-                const result = await response.json();
+                const result = await readResponse(response);
 
                 if (!response.ok) {
                     throw new Error(
-                        result.message || "Command could not be sent."
+                        result.message ||
+                        "The server rejected the command."
                     );
                 }
-            } catch (error) {
-                console.error("Fan command failed:", error);
 
-                showToast(
-                    "Could not send the fan command. Check the connection."
+                // Update the website after the backend accepts
+                // the command. This does not confirm the physical
+                // device has completed the action.
+                device.on = newState;
+
+                addEvent(
+                    "Device command sent",
+                    device.name + " was " +
+                    (newState ? "switched on" : "switched off") +
+                    ". Command: " + command,
+                    "Success",
+                    device.icon
                 );
 
-                return;
+                renderAllDevices();
+                updateDashboard();
+                renderEvents();
+
+                showToast(
+                    device.name +
+                    (newState
+                        ? " ON command sent."
+                        : " OFF command sent.")
+                );
+
+            } catch (error) {
+                console.error(
+                    "Could not control " + device.name + ":",
+                    error
+                );
+
+                addEvent(
+                    "Device command failed",
+                    "Could not send a command to " +
+                    device.name + ".",
+                    "Warning",
+                    "!"
+                );
+
+                renderEvents();
+
+                showToast(
+                    "Could not control " + device.name +
+                    ". Check the backend connection."
+                );
             }
+
+            return;
         }
 
+        // Other switches without a configured hardware command
+        // retain their original website-only behaviour.
         device.on = newState;
-
-        const action = device.on
-            ? "switched on"
-            : "switched off";
 
         addEvent(
             "Device updated",
-            device.name + " was " + action + ".",
+            device.name + " was " +
+            (device.on ? "switched on" : "switched off") + ".",
             "Success",
             device.icon
         );
@@ -578,13 +750,19 @@ function createToggle(device) {
         updateDashboard();
         renderEvents();
 
-        showToast(device.name + " " + action + ".");
+        showToast(
+            device.name +
+            (device.on ? " switched on." : " switched off.")
+        );
     });
 
     return button;
 }
 
-// Device counts
+// =====================================================
+// 12. DEVICE COUNTS
+// =====================================================
+
 function updateActiveDeviceCount() {
     setText("deviceCount", devices.length);
 
@@ -594,7 +772,10 @@ function updateActiveDeviceCount() {
     );
 }
 
-// Dashboard
+// =====================================================
+// 13. DASHBOARD
+// =====================================================
+
 function updateDashboard() {
     updateActiveDeviceCount();
 
@@ -624,7 +805,10 @@ function updateDashboard() {
     renderRecentEvents();
 }
 
-// Climate display
+// =====================================================
+// 14. CLIMATE CONTROL
+// =====================================================
+
 function updateClimateDisplay() {
     setText(
         "largeTemperature",
@@ -642,14 +826,17 @@ function updateClimateDisplay() {
 }
 
 function updateTargetPreview() {
-    setText(
-        "targetNumber",
-        document.getElementById("temperatureSlider").value
-    );
+    const slider = document.getElementById("temperatureSlider");
+
+    if (slider) {
+        setText("targetNumber", slider.value);
+    }
 }
 
 function saveTemperature() {
     const slider = document.getElementById("temperatureSlider");
+
+    if (!slider) return;
 
     targetTemperature = Number(slider.value);
 
@@ -659,14 +846,18 @@ function saveTemperature() {
     const message =
         document.getElementById("temperatureMessage");
 
-    message.textContent =
-        "Target temperature saved to " + targetTemperature + "°C.";
+    if (message) {
+        message.textContent =
+            "Target temperature saved to " +
+            targetTemperature + "°C.";
 
-    message.className = "message success";
+        message.className = "message success";
+    }
 
     addEvent(
         "Climate updated",
-        "Target temperature set to " + targetTemperature + "°C.",
+        "Target temperature set to " +
+        targetTemperature + "°C.",
         "Success",
         "♨"
     );
@@ -674,11 +865,15 @@ function saveTemperature() {
     renderEvents();
 
     showToast(
-        "Target temperature set to " + targetTemperature + "°C."
+        "Target temperature set to " +
+        targetTemperature + "°C."
     );
 }
 
-// Sensor display
+// =====================================================
+// 15. SENSOR DISPLAY
+// =====================================================
+
 function updateSensorDisplay() {
     setText(
         "sensorTemperature",
@@ -737,7 +932,10 @@ function updateSensorDisplay() {
     );
 }
 
-// Load latest sensor data from backend
+// =====================================================
+// 16. LOAD SENSOR DATA FROM RENDER
+// =====================================================
+
 async function loadLatestSensorReading() {
     const connectionStatus =
         document.getElementById("connectionStatus");
@@ -762,7 +960,7 @@ async function loadLatestSensorReading() {
             typeof data !== "object" ||
             Array.isArray(data)
         ) {
-            throw new Error("No sensor reading was returned");
+            throw new Error("No sensor reading was returned.");
         }
 
         currentTemperature = toNumberOrNull(data.temperature);
@@ -779,7 +977,9 @@ async function loadLatestSensorReading() {
             rainDetected = data.rain_detected === 1;
         } else if (
             typeof data.rain_detected === "string" &&
-            ["true", "false"].includes(data.rain_detected.toLowerCase())
+            ["true", "false"].includes(
+                data.rain_detected.toLowerCase()
+            )
         ) {
             rainDetected =
                 data.rain_detected.toLowerCase() === "true";
@@ -819,7 +1019,10 @@ async function loadLatestSensorReading() {
     }
 }
 
-// Load latest RFID event from backend
+// =====================================================
+// 17. LOAD RFID ACCESS EVENT
+// =====================================================
+
 async function loadLatestAccessEvent() {
     try {
         const response = await fetch(
@@ -869,7 +1072,10 @@ async function loadLatestAccessEvent() {
     }
 }
 
-// Security / RFID demonstration buttons
+// =====================================================
+// 18. RFID DEMONSTRATION BUTTONS
+// =====================================================
+
 function simulateValidCard() {
     lastCard = "CARD-4821";
     lastAccessResult = "Access granted";
@@ -877,7 +1083,8 @@ function simulateValidCard() {
 
     addEvent(
         "RFID scan",
-        "Demo authorised card " + lastCard + " granted access.",
+        "Demo authorised card " + lastCard +
+        " granted access.",
         "Success",
         "⌑"
     );
@@ -896,7 +1103,8 @@ function simulateInvalidCard() {
 
     addEvent(
         "RFID scan",
-        "Demo unknown card " + lastCard + " was denied.",
+        "Demo unknown card " + lastCard +
+        " was denied.",
         "Warning",
         "!"
     );
@@ -954,7 +1162,10 @@ function updateSecurityDisplay() {
     }
 }
 
-// Event history
+// =====================================================
+// 19. EVENT HISTORY
+// =====================================================
+
 function addEvent(title, details, status, icon) {
     events.unshift({
         time: new Date().toLocaleTimeString("en-ZA", {
@@ -1059,7 +1270,10 @@ function clearHistory() {
     showToast("Event history cleared.");
 }
 
-// Toast messages
+// =====================================================
+// 20. TOAST NOTIFICATIONS
+// =====================================================
+
 function showToast(message) {
     if (!toast) return;
 
@@ -1073,12 +1287,23 @@ function showToast(message) {
     }, 2600);
 }
 
-// Helpers
+// =====================================================
+// 21. HELPER FUNCTIONS
+// =====================================================
+
 function setText(id, value) {
     const element = document.getElementById(id);
 
     if (element) {
         element.textContent = value;
+    }
+}
+
+async function readResponse(response) {
+    try {
+        return await response.json();
+    } catch (error) {
+        return {};
     }
 }
 
