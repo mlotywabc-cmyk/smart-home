@@ -19,7 +19,7 @@ const pool = new Pool({
     : false
 });
 
-// Create the database tables
+// Create and prepare database tables
 async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sensor_readings (
@@ -71,7 +71,7 @@ async function initializeDatabase() {
   console.log("Database tables are ready.");
 }
 
-// Check the device token sent by the ESP32
+// Check the ESP32 device token
 function requireDeviceToken(req, res, next) {
   const expectedToken = process.env.DEVICE_TOKEN;
   const suppliedToken = req.get("X-Device-Token");
@@ -94,18 +94,33 @@ function requireDeviceToken(req, res, next) {
   next();
 }
 
-// Commands allowed by the server
+// Commands accepted from the website
 const ALLOWED_COMMANDS = new Set([
+  // Front door
   "door_open",
   "door_close",
+
+  // Garage door
   "garage_open",
   "garage_close",
+
+  // Rain cover
   "rain_open",
   "rain_close",
   "rain_auto",
+
+  // Fan
   "fan_on",
   "fan_off",
-  "fan_auto"
+  "fan_auto",
+
+  // Bedroom light - ESP32 GPIO 22
+  "bedroom_light_on",
+  "bedroom_light_off",
+
+  // Living room light - ESP32 GPIO 23
+  "living_light_on",
+  "living_light_off"
 ]);
 
 function validateCommand(command) {
@@ -119,6 +134,7 @@ function validateCommand(command) {
     return true;
   }
 
+  // Validate temperature commands, for example temperature:24.5
   const match = normalized.match(/^temperature:(\d+(?:\.\d+)?)$/);
 
   if (!match) {
@@ -130,14 +146,14 @@ function validateCommand(command) {
   return Number.isFinite(value) && value >= 0 && value <= 60;
 }
 
-// API home route
+// API home page
 app.get("/", (req, res) => {
   res.json({
     message: "Smart Home API is running"
   });
 });
 
-// Check the API and database connection
+// Check API and database health
 app.get("/api/health", async (req, res) => {
   try {
     const result = await pool.query(
@@ -243,7 +259,7 @@ app.post("/api/sensors", async (req, res) => {
   }
 });
 
-// Get the latest sensor readings
+// Get the latest sensor reading
 app.get("/api/sensors/latest", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -346,7 +362,7 @@ app.post("/api/access-events", async (req, res) => {
   }
 });
 
-// Get the latest RFID event
+// Get the latest RFID access event
 app.get("/api/access-events/latest", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -366,7 +382,7 @@ app.get("/api/access-events/latest", async (req, res) => {
   }
 });
 
-// Get RFID event history
+// Get RFID access history
 app.get("/api/access-events", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -386,7 +402,7 @@ app.get("/api/access-events", async (req, res) => {
   }
 });
 
-// Save a device status
+// Save device status
 app.post("/api/devices", async (req, res) => {
   try {
     const { device_name, status } = req.body;
@@ -442,7 +458,7 @@ app.get("/api/devices", async (req, res) => {
   }
 });
 
-// Queue a command sent from the website
+// Queue a command from the website
 app.post("/api/device-commands", async (req, res) => {
   try {
     const { command } = req.body;
@@ -542,7 +558,7 @@ app.get(
   }
 );
 
-// Start the server after the database is ready
+// Start the server
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
