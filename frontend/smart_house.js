@@ -89,6 +89,11 @@ let humidity = null;
 let rainValue = null;
 let rainDetected = null;
 let distanceCm = null;
+
+// PIR motion sensor
+let pirMotion = null;
+const PIR_GPIO_PIN = 15;
+
 let lastSensorTimestamp = null;
 
 let targetTemperature = 23;
@@ -128,6 +133,7 @@ function initialiseWebsite() {
     updateDashboard();
     updateClimateDisplay();
     updateSecurityDisplay();
+    updateSensorDisplay();
     renderEvents();
 
     loadLatestSensorReading();
@@ -239,10 +245,17 @@ function handleLogin(event) {
         username === DEMO_USERNAME &&
         password === DEMO_PASSWORD
     ) {
-        loginScreen.classList.add("hidden");
-        app.classList.remove("hidden");
+        if (loginScreen) {
+            loginScreen.classList.add("hidden");
+        }
 
-        loginMessage.textContent = "";
+        if (app) {
+            app.classList.remove("hidden");
+        }
+
+        if (loginMessage) {
+            loginMessage.textContent = "";
+        }
 
         document.getElementById("username").value = "";
         document.getElementById("password").value = "";
@@ -259,10 +272,12 @@ function handleLogin(event) {
 
         showToast("Welcome to your SmartHome dashboard.");
     } else {
-        loginMessage.textContent =
-            "Incorrect username or password.";
+        if (loginMessage) {
+            loginMessage.textContent =
+                "Incorrect username or password.";
 
-        loginMessage.className = "message error";
+            loginMessage.className = "message error";
+        }
 
         addEvent(
             "Login attempt",
@@ -276,8 +291,13 @@ function handleLogin(event) {
 }
 
 function logout() {
-    loginScreen.classList.remove("hidden");
-    app.classList.add("hidden");
+    if (loginScreen) {
+        loginScreen.classList.remove("hidden");
+    }
+
+    if (app) {
+        app.classList.add("hidden");
+    }
 
     showPage("dashboard");
     showToast("You have signed out.");
@@ -397,7 +417,6 @@ function renderAllDevices() {
     updateActiveDeviceCount();
 }
 
-// Create device row on dashboard
 function createDeviceRow(device) {
     const row = document.createElement("div");
     row.className = "device-row";
@@ -437,7 +456,6 @@ function createDeviceRow(device) {
     return row;
 }
 
-// Create device card on Devices page
 function createDeviceCard(device) {
     const card = document.createElement("article");
     card.className = "device-card";
@@ -613,7 +631,7 @@ async function controlServo(device, open) {
 // 11. LIGHT AND FAN SWITCHES
 // =====================================================
 
-// These command names MUST match the Arduino code.
+// These command names must match the Arduino code.
 const DEVICE_COMMANDS = {
     bedroomLight: {
         on: "bedroom_light_on",
@@ -643,13 +661,11 @@ function createToggle(device) {
     button.setAttribute("aria-label", "Switch " + device.name);
 
     button.addEventListener("click", async () => {
-        // Prevent repeated clicks while a command is being sent.
         if (button.disabled) return;
 
         const newState = !device.on;
         const commandSet = DEVICE_COMMANDS[device.id];
 
-        // Physical lights and fan must receive backend commands.
         if (commandSet) {
             const command = newState
                 ? commandSet.on
@@ -684,15 +700,14 @@ function createToggle(device) {
                     );
                 }
 
-                // Update the website after the backend accepts
-                // the command. This does not confirm the physical
-                // device has completed the action.
                 device.on = newState;
 
                 addEvent(
                     "Device command sent",
                     device.name + " was " +
-                    (newState ? "switched on" : "switched off") +
+                    (newState
+                        ? "switched on"
+                        : "switched off") +
                     ". Command: " + command,
                     "Success",
                     device.icon
@@ -734,14 +749,15 @@ function createToggle(device) {
             return;
         }
 
-        // Other switches without a configured hardware command
-        // retain their original website-only behaviour.
+        // Website-only switches without configured commands.
         device.on = newState;
 
         addEvent(
             "Device updated",
             device.name + " was " +
-            (device.on ? "switched on" : "switched off") + ".",
+            (device.on
+                ? "switched on"
+                : "switched off") + ".",
             "Success",
             device.icon
         );
@@ -752,7 +768,9 @@ function createToggle(device) {
 
         showToast(
             device.name +
-            (device.on ? " switched on." : " switched off.")
+            (device.on
+                ? " switched on."
+                : " switched off.")
         );
     });
 
@@ -871,20 +889,23 @@ function saveTemperature() {
 }
 
 // =====================================================
-// 15. SENSOR DISPLAY
+// 15. SENSOR DISPLAY INCLUDING PIR MOTION
 // =====================================================
 
 function updateSensorDisplay() {
+    // Temperature
     setText(
         "sensorTemperature",
         formatNumber(currentTemperature, 1)
     );
 
+    // Humidity
     setText(
         "sensorHumidity",
         humidity === null ? "--" : humidity
     );
 
+    // Rain sensor
     setText(
         "rainValue",
         rainValue === null ? "--" : rainValue
@@ -908,6 +929,7 @@ function updateSensorDisplay() {
                 : "No rain"
     );
 
+    // Ultrasonic sensor
     setText(
         "distanceValue",
         formatNumber(distanceCm, 2)
@@ -924,6 +946,37 @@ function updateSensorDisplay() {
                     : "Clear"
     );
 
+    // PIR motion sensor
+    setText("pirPin", PIR_GPIO_PIN);
+
+    setText(
+        "pirStatus",
+        pirMotion === null
+            ? "Waiting..."
+            : pirMotion
+                ? "Motion Detected"
+                : "No Motion"
+    );
+
+    setText(
+        "pirDetection",
+        pirMotion === null
+            ? "No data"
+            : pirMotion
+                ? "Motion detected"
+                : "No motion detected"
+    );
+
+    setText(
+        "pirValue",
+        pirMotion === null
+            ? "--"
+            : pirMotion
+                ? "HIGH"
+                : "LOW"
+    );
+
+    // Last sensor update
     setText(
         "lastSensorUpdate",
         lastSensorTimestamp
@@ -933,7 +986,75 @@ function updateSensorDisplay() {
 }
 
 // =====================================================
-// 16. LOAD SENSOR DATA FROM RENDER
+// 16. PIR VALUE CONVERSION
+// =====================================================
+
+function toBooleanOrNull(value) {
+    if (value === null || value === undefined || value === "") {
+        return null;
+    }
+
+    if (typeof value === "boolean") {
+        return value;
+    }
+
+    if (typeof value === "number") {
+        if (value === 1) return true;
+        if (value === 0) return false;
+        return null;
+    }
+
+    if (typeof value === "string") {
+        const normalised = value.trim().toLowerCase();
+
+        if (
+            ["true", "1", "high", "motion", "detected",
+             "motion detected", "yes"].includes(normalised)
+        ) {
+            return true;
+        }
+
+        if (
+            ["false", "0", "low", "no motion", "clear",
+             "not detected", "no"].includes(normalised)
+        ) {
+            return false;
+        }
+    }
+
+    return null;
+}
+
+function getPirValue(data) {
+    // Supports common names used by different backends.
+    const possibleFields = [
+        "pir_motion",
+        "motion_detected",
+        "pir_value",
+        "pir_status",
+        "pir",
+        "motion",
+        "motion_detection",
+        "pir_detected"
+    ];
+
+    for (const field of possibleFields) {
+        if (
+            Object.prototype.hasOwnProperty.call(data, field)
+        ) {
+            const value = toBooleanOrNull(data[field]);
+
+            if (value !== null) {
+                return value;
+            }
+        }
+    }
+
+    return null;
+}
+
+// =====================================================
+// 17. LOAD SENSOR DATA FROM BACKEND
 // =====================================================
 
 async function loadLatestSensorReading() {
@@ -963,11 +1084,22 @@ async function loadLatestSensorReading() {
             throw new Error("No sensor reading was returned.");
         }
 
-        currentTemperature = toNumberOrNull(data.temperature);
-        humidity = toNumberOrNull(data.humidity);
-        rainValue = toNumberOrNull(data.rain_value);
-        distanceCm = toNumberOrNull(data.distance_cm);
+        currentTemperature =
+            toNumberOrNull(data.temperature);
 
+        humidity =
+            toNumberOrNull(data.humidity);
+
+        rainValue =
+            toNumberOrNull(data.rain_value);
+
+        distanceCm =
+            toNumberOrNull(data.distance_cm);
+
+        // Read PIR sensor data.
+        pirMotion = getPirValue(data);
+
+        // Read rain detection.
         if (typeof data.rain_detected === "boolean") {
             rainDetected = data.rain_detected;
         } else if (
@@ -987,7 +1119,8 @@ async function loadLatestSensorReading() {
             rainDetected = null;
         }
 
-        lastSensorTimestamp = data.recorded_at || null;
+        lastSensorTimestamp =
+            data.recorded_at || data.timestamp || null;
 
         if (connectionStatus) {
             connectionStatus.textContent = "Backend connected";
@@ -1003,6 +1136,11 @@ async function loadLatestSensorReading() {
         updateClimateDisplay();
 
         console.log("Latest ESP32 sensor data:", data);
+
+        // Record a motion event when the sensor detects movement.
+        if (pirMotion === true) {
+            console.log("PIR sensor: Motion detected.");
+        }
 
     } catch (error) {
         console.error("Could not load sensor data:", error);
@@ -1020,7 +1158,7 @@ async function loadLatestSensorReading() {
 }
 
 // =====================================================
-// 17. LOAD RFID ACCESS EVENT
+// 18. LOAD RFID ACCESS EVENT
 // =====================================================
 
 async function loadLatestAccessEvent() {
@@ -1073,7 +1211,7 @@ async function loadLatestAccessEvent() {
 }
 
 // =====================================================
-// 18. RFID DEMONSTRATION BUTTONS
+// 19. RFID DEMONSTRATION BUTTONS
 // =====================================================
 
 function simulateValidCard() {
@@ -1163,7 +1301,7 @@ function updateSecurityDisplay() {
 }
 
 // =====================================================
-// 19. EVENT HISTORY
+// 20. EVENT HISTORY
 // =====================================================
 
 function addEvent(title, details, status, icon) {
@@ -1271,7 +1409,7 @@ function clearHistory() {
 }
 
 // =====================================================
-// 20. TOAST NOTIFICATIONS
+// 21. TOAST NOTIFICATIONS
 // =====================================================
 
 function showToast(message) {
@@ -1288,7 +1426,7 @@ function showToast(message) {
 }
 
 // =====================================================
-// 21. HELPER FUNCTIONS
+// 22. HELPER FUNCTIONS
 // =====================================================
 
 function setText(id, value) {

@@ -88,6 +88,8 @@
         </aside>
 
         <main class="main-content">
+
+            <!-- Top navigation bar -->
             <header class="topbar">
                 <div>
                     <p class="eyebrow">SMART HOME CONTROL</p>
@@ -127,7 +129,7 @@
                             <span>Connected devices</span>
                             <span class="stat-icon">◉</span>
                         </div>
-                        <h2 id="deviceCount">4</h2>
+                        <h2 id="deviceCount">7</h2>
                         <p class="muted">Devices available</p>
                     </article>
 
@@ -222,7 +224,7 @@
 
                 </div>
 
-                <!-- NEW: Live sensor monitoring -->
+                <!-- Live sensor monitoring -->
                 <article class="panel sensor-panel">
                     <div class="panel-heading">
                         <div>
@@ -238,6 +240,29 @@
                     </div>
 
                     <div class="sensor-grid">
+
+                        <!-- PIR motion sensor -->
+                        <article class="sensor-card">
+                            <div class="sensor-card-icon">🚶</div>
+                            <p class="muted">PIR Motion Sensor</p>
+
+                            <h2 id="pirStatus">Waiting...</h2>
+
+                            <p class="sensor-description">
+                                Detection:
+                                <strong id="pirDetection">No data</strong>
+                            </p>
+
+                            <p class="sensor-description">
+                                Digital output:
+                                <strong id="pirValue">--</strong>
+                            </p>
+
+                            <p class="sensor-description">
+                                GPIO Pin:
+                                <strong id="pirPin">15</strong>
+                            </p>
+                        </article>
 
                         <!-- Rain sensor -->
                         <article class="sensor-card">
@@ -536,8 +561,10 @@
         </main>
     </div>
 
+    <!-- Toast notifications -->
     <div id="toast" class="toast" role="status"></div>
 
+    <!-- JavaScript -->
     <script src="smart_house.js"></script>
 </body>
 </html>
