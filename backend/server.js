@@ -29,6 +29,7 @@ async function initializeDatabase() {
       rain_value INTEGER,
       rain_detected BOOLEAN,
       distance_cm DOUBLE PRECISION,
+      pir_motion BOOLEAN,
       recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -38,6 +39,7 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS rain_value INTEGER,
       ADD COLUMN IF NOT EXISTS rain_detected BOOLEAN,
       ADD COLUMN IF NOT EXISTS distance_cm DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS pir_motion BOOLEAN,
       ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ DEFAULT NOW();
 
     CREATE TABLE IF NOT EXISTS access_events (
@@ -174,7 +176,7 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
-// Save sensor readings
+// Save sensor readings, including PIR motion
 app.post("/api/sensors", async (req, res) => {
   try {
     const {
@@ -182,9 +184,11 @@ app.post("/api/sensors", async (req, res) => {
       humidity,
       rain_value,
       rain_detected,
-      distance_cm
+      distance_cm,
+      pir_motion
     } = req.body;
 
+    // Validate numeric sensor readings
     const numericFields = {
       temperature,
       humidity,
@@ -204,6 +208,7 @@ app.post("/api/sensors", async (req, res) => {
       }
     }
 
+    // Validate rain sensor integer
     if (
       rain_value !== undefined &&
       rain_value !== null &&
@@ -214,14 +219,22 @@ app.post("/api/sensors", async (req, res) => {
       });
     }
 
-    if (
-      rain_detected !== undefined &&
-      rain_detected !== null &&
-      typeof rain_detected !== "boolean"
-    ) {
-      return res.status(400).json({
-        error: "rain_detected must be true, false or null"
-      });
+    // Validate Boolean sensor readings
+    const booleanFields = {
+      rain_detected,
+      pir_motion
+    };
+
+    for (const [field, value] of Object.entries(booleanFields)) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        typeof value !== "boolean"
+      ) {
+        return res.status(400).json({
+          error: field + " must be true, false or null"
+        });
+      }
     }
 
     const values = [
@@ -229,7 +242,8 @@ app.post("/api/sensors", async (req, res) => {
       humidity ?? null,
       rain_value ?? null,
       rain_detected ?? null,
-      distance_cm ?? null
+      distance_cm ?? null,
+      pir_motion ?? null
     ];
 
     if (values.every(value => value === null)) {
@@ -239,10 +253,16 @@ app.post("/api/sensors", async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO sensor_readings
-        (temperature, humidity, rain_value, rain_detected, distance_cm)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+      `INSERT INTO sensor_readings (
+        temperature,
+        humidity,
+        rain_value,
+        rain_detected,
+        distance_cm,
+        pir_motion
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
       values
     );
 
