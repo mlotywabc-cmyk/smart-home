@@ -7,7 +7,6 @@
 
 const API_BASE = "https://smart-home-b1p5.onrender.com";
 
-// Demo login
 const DEMO_USERNAME = "admin";
 const DEMO_PASSWORD = "home123";
 
@@ -90,7 +89,6 @@ let rainValue = null;
 let rainDetected = null;
 let distanceCm = null;
 
-// PIR motion sensor
 let pirMotion = null;
 const PIR_GPIO_PIN = 15;
 
@@ -102,6 +100,13 @@ let lastCard = "None";
 let lastAccessResult = "No scan yet";
 let events = [];
 let toastTimer;
+
+// Timer storage
+const DEVICE_TIMERS_KEY = "smartHomeDeviceTimers";
+const TIMER_FIRED_PREFIX = "smartHomeTimerFired_";
+
+let timerCheckInterval = null;
+let timerCommandInProgress = {};
 
 // Cached HTML elements
 const loginScreen = document.getElementById("loginScreen");
@@ -135,6 +140,9 @@ function initialiseWebsite() {
     updateSecurityDisplay();
     updateSensorDisplay();
     renderEvents();
+
+    // Start the automatic device timers.
+    initialiseDeviceTimers();
 
     loadLatestSensorReading();
     setInterval(loadLatestSensorReading, 10000);
@@ -224,6 +232,27 @@ function addEventListeners() {
         clearHistoryButton.addEventListener(
             "click",
             clearHistory
+        );
+    }
+
+    // Automatic device timers
+    const deviceTimerForm =
+        document.getElementById("deviceTimerForm");
+
+    if (deviceTimerForm) {
+        deviceTimerForm.addEventListener(
+            "submit",
+            saveDeviceTimers
+        );
+    }
+
+    const clearDeviceTimersButton =
+        document.getElementById("clearDeviceTimers");
+
+    if (clearDeviceTimersButton) {
+        clearDeviceTimersButton.addEventListener(
+            "click",
+            clearDeviceTimers
         );
     }
 }
@@ -326,7 +355,8 @@ function showPage(pageName) {
         }
     });
 
-    const selectedPage = document.getElementById(pages[pageName]);
+    const selectedPage =
+        document.getElementById(pages[pageName]);
 
     if (selectedPage) {
         selectedPage.classList.remove("hidden");
@@ -573,9 +603,7 @@ async function controlServo(device, open) {
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    command: command
-                })
+                body: JSON.stringify({ command })
             }
         );
 
@@ -631,7 +659,6 @@ async function controlServo(device, open) {
 // 11. LIGHT AND FAN SWITCHES
 // =====================================================
 
-// These command names must match the Arduino code.
 const DEVICE_COMMANDS = {
     bedroomLight: {
         on: "bedroom_light_on",
@@ -685,9 +712,7 @@ function createToggle(device) {
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify({
-                            command: command
-                        })
+                        body: JSON.stringify({ command })
                     }
                 );
 
@@ -778,7 +803,451 @@ function createToggle(device) {
 }
 
 // =====================================================
-// 12. DEVICE COUNTS
+// 12. AUTOMATIC DEVICE TIMERS
+// =====================================================
+
+function initialiseDeviceTimers() {
+    loadDeviceTimersIntoForm();
+    updateTimerStatusText();
+
+    // Check the configured times every five seconds.
+    checkDeviceTimers();
+
+    if (timerCheckInterval !== null) {
+        clearInterval(timerCheckInterval);
+    }
+
+    timerCheckInterval = setInterval(
+        checkDeviceTimers,
+        5000
+    );
+}
+
+function getTimerInputValues() {
+    return {
+        bedroomLight: {
+            on: document.getElementById(
+                "bedroomLightOnTime"
+            )?.value || "",
+
+            off: document.getElementById(
+                "bedroomLightOffTime"
+            )?.value || ""
+        },
+
+        livingLight: {
+            on: document.getElementById(
+                "livingRoomLightOnTime"
+            )?.value || "",
+
+            off: document.getElementById(
+                "livingRoomLightOffTime"
+            )?.value || ""
+        },
+
+        fan: {
+            on: document.getElementById(
+                "fanOnTime"
+            )?.value || "",
+
+            off: document.getElementById(
+                "fanOffTime"
+            )?.value || ""
+        }
+    };
+}
+
+function saveDeviceTimers(event) {
+    event.preventDefault();
+
+    const timers = getTimerInputValues();
+
+    // Every device must have two different times.
+    for (const [deviceId, times] of Object.entries(timers)) {
+        if (!times.on || !times.off) {
+            showTimerMessage(
+                "Please select both ON and OFF times for every device.",
+                "error"
+            );
+            return;
+        }
+
+        if (times.on === times.off) {
+            showTimerMessage(
+                getDeviceName(deviceId) +
+                " must have different ON and OFF times.",
+                "error"
+            );
+            return;
+        }
+    }
+
+    try {
+        localStorage.setItem(
+            DEVICE_TIMERS_KEY,
+            JSON.stringify(timers)
+        );
+
+        updateTimerStatusText();
+
+        addEvent(
+            "Device timers saved",
+            "Daily ON and OFF times were saved for the bedroom light, living room light and fan.",
+            "Success",
+            "◷"
+        );
+
+        renderEvents();
+
+        showTimerMessage(
+            "Timer settings saved successfully.",
+            "success"
+        );
+
+        showToast("Device timer settings saved.");
+
+        // Check whether a selected time matches the current time.
+        checkDeviceTimers();
+
+    } catch (error) {
+        console.error("Could not save device timers:", error);
+
+        showTimerMessage(
+            "Could not save the timers in this browser.",
+            "error"
+        );
+    }
+}
+
+function loadDeviceTimersIntoForm() {
+    let timers;
+
+    try {
+        const saved = localStorage.getItem(DEVICE_TIMERS_KEY);
+
+        if (!saved) return;
+
+        timers = JSON.parse(saved);
+    } catch (error) {
+        console.error("Could not load device timers:", error);
+        return;
+    }
+
+    if (!timers || typeof timers !== "object") return;
+
+    const fieldMap = {
+        bedroomLight: {
+            on: "bedroomLightOnTime",
+            off: "bedroomLightOffTime"
+        },
+
+        livingLight: {
+            on: "livingRoomLightOnTime",
+            off: "livingRoomLightOffTime"
+        },
+
+        fan: {
+            on: "fanOnTime",
+            off: "fanOffTime"
+        }
+    };
+
+    for (const [deviceId, fields] of Object.entries(fieldMap)) {
+        const deviceTimes = timers[deviceId];
+
+        if (!deviceTimes) continue;
+
+        const onInput = document.getElementById(fields.on);
+        const offInput = document.getElementById(fields.off);
+
+        if (onInput && typeof deviceTimes.on === "string") {
+            onInput.value = deviceTimes.on;
+        }
+
+        if (offInput && typeof deviceTimes.off === "string") {
+            offInput.value = deviceTimes.off;
+        }
+    }
+}
+
+function clearDeviceTimers() {
+    try {
+        localStorage.removeItem(DEVICE_TIMERS_KEY);
+
+        // Remove previous execution records for these timers.
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+
+            if (key && key.startsWith(TIMER_FIRED_PREFIX)) {
+                localStorage.removeItem(key);
+            }
+        }
+    } catch (error) {
+        console.error("Could not clear device timers:", error);
+
+        showTimerMessage(
+            "Could not clear timer settings.",
+            "error"
+        );
+        return;
+    }
+
+    const form = document.getElementById("deviceTimerForm");
+
+    if (form) {
+        form.reset();
+    }
+
+    updateTimerStatusText();
+
+    showTimerMessage(
+        "Timers cleared. Devices will no longer follow the saved schedule.",
+        "success"
+    );
+
+    addEvent(
+        "Device timers cleared",
+        "Saved automatic ON and OFF times were removed.",
+        "Success",
+        "◷"
+    );
+
+    renderEvents();
+
+    showToast("Automatic device timers cleared.");
+}
+
+function updateTimerStatusText() {
+    const status = document.getElementById("timerStatusText");
+
+    if (!status) return;
+
+    try {
+        const saved = localStorage.getItem(DEVICE_TIMERS_KEY);
+
+        if (!saved) {
+            status.textContent =
+                "Timer settings have not been configured.";
+            return;
+        }
+
+        const timers = JSON.parse(saved);
+
+        status.textContent =
+            "Daily timers are saved for the bedroom light, " +
+            "living room light and fan. Keep this website open " +
+            "for scheduled commands to run.";
+    } catch (error) {
+        status.textContent =
+            "Timer settings could not be read.";
+    }
+}
+
+function showTimerMessage(message, type) {
+    const element = document.getElementById("timerMessage");
+
+    if (!element) return;
+
+    element.textContent = message;
+    element.className = "message " + type;
+}
+
+function getDeviceName(deviceId) {
+    const device = devices.find(item => item.id === deviceId);
+
+    return device ? device.name : deviceId;
+}
+
+function getLocalDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return year + "-" + month + "-" + day;
+}
+
+function getLocalTimeKey(date) {
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    return hours + ":" + minutes;
+}
+
+function checkDeviceTimers() {
+    let timers;
+
+    try {
+        const saved = localStorage.getItem(DEVICE_TIMERS_KEY);
+
+        if (!saved) return;
+
+        timers = JSON.parse(saved);
+    } catch (error) {
+        console.error("Could not read device timers:", error);
+        return;
+    }
+
+    if (!timers || typeof timers !== "object") return;
+
+    const now = new Date();
+    const today = getLocalDateKey(now);
+    const currentTime = getLocalTimeKey(now);
+
+    for (const deviceId of Object.keys(DEVICE_COMMANDS)) {
+        const times = timers[deviceId];
+
+        if (!times) continue;
+
+        if (times.on === currentTime) {
+            runScheduledDeviceCommand(
+                deviceId,
+                true,
+                today
+            );
+        }
+
+        if (times.off === currentTime) {
+            runScheduledDeviceCommand(
+                deviceId,
+                false,
+                today
+            );
+        }
+    }
+}
+
+async function runScheduledDeviceCommand(deviceId, turnOn, dateKey) {
+    const commandSet = DEVICE_COMMANDS[deviceId];
+
+    if (!commandSet) return;
+
+    const action = turnOn ? "on" : "off";
+
+    const firedKey =
+        TIMER_FIRED_PREFIX +
+        dateKey + "_" +
+        deviceId + "_" +
+        action;
+
+    // Do not send the same scheduled command more than once per day.
+    try {
+        if (localStorage.getItem(firedKey)) return;
+    } catch (error) {
+        console.error("Could not check timer execution record:", error);
+        return;
+    }
+
+    // Prevent duplicate requests while a command is being sent.
+    const progressKey = deviceId + "_" + action;
+
+    if (timerCommandInProgress[progressKey]) return;
+
+    timerCommandInProgress[progressKey] = true;
+
+    // Mark this scheduled action before sending the request.
+    // If it fails, remove the record so it can retry during this minute.
+    try {
+        localStorage.setItem(firedKey, "pending");
+    } catch (error) {
+        console.error("Could not record timer execution:", error);
+        timerCommandInProgress[progressKey] = false;
+        return;
+    }
+
+    const command = turnOn ? commandSet.on : commandSet.off;
+    const device = devices.find(item => item.id === deviceId);
+
+    try {
+        showToast(
+            "Timer: switching " + getDeviceName(deviceId) +
+            (turnOn ? " on..." : " off...")
+        );
+
+        const response = await fetch(
+            API_BASE + "/api/device-commands",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ command })
+            }
+        );
+
+        const result = await readResponse(response);
+
+        if (!response.ok) {
+            throw new Error(
+                result.message || "The server rejected the command."
+            );
+        }
+
+        // Record that the command was successfully accepted.
+        localStorage.setItem(firedKey, "done");
+
+        if (device) {
+            device.on = turnOn;
+        }
+
+        addEvent(
+            "Automatic timer executed",
+            getDeviceName(deviceId) +
+            " was scheduled to switch " +
+            (turnOn ? "on" : "off") +
+            ". Command: " + command,
+            "Success",
+            device ? device.icon : "◷"
+        );
+
+        renderAllDevices();
+        updateDashboard();
+        renderEvents();
+
+        showToast(
+            getDeviceName(deviceId) +
+            (turnOn
+                ? " switched ON by timer."
+                : " switched OFF by timer.")
+        );
+
+    } catch (error) {
+        console.error(
+            "Scheduled command failed for " + deviceId + ":",
+            error
+        );
+
+        // Allow another attempt if the scheduled minute is still active.
+        try {
+            localStorage.removeItem(firedKey);
+        } catch (storageError) {
+            console.error(
+                "Could not reset timer execution record:",
+                storageError
+            );
+        }
+
+        addEvent(
+            "Automatic timer failed",
+            "Could not send the scheduled command for " +
+            getDeviceName(deviceId) + ".",
+            "Warning",
+            "!"
+        );
+
+        renderEvents();
+
+        showToast(
+            "Timer command failed for " + getDeviceName(deviceId) +
+            ". Check the backend connection."
+        );
+
+    } finally {
+        timerCommandInProgress[progressKey] = false;
+    }
+}
+
+// =====================================================
+// 13. DEVICE COUNTS
 // =====================================================
 
 function updateActiveDeviceCount() {
@@ -791,7 +1260,7 @@ function updateActiveDeviceCount() {
 }
 
 // =====================================================
-// 13. DASHBOARD
+// 14. DASHBOARD
 // =====================================================
 
 function updateDashboard() {
@@ -824,7 +1293,7 @@ function updateDashboard() {
 }
 
 // =====================================================
-// 14. CLIMATE CONTROL
+// 15. CLIMATE CONTROL
 // =====================================================
 
 function updateClimateDisplay() {
@@ -835,7 +1304,7 @@ function updateClimateDisplay() {
 
     setText(
         "largeHumidity",
-        humidity === null ? "--" : humidity + "%"
+        humidity === null ? "--" : humidity
     );
 
     setText("targetDisplay", targetTemperature);
@@ -889,23 +1358,20 @@ function saveTemperature() {
 }
 
 // =====================================================
-// 15. SENSOR DISPLAY INCLUDING PIR MOTION
+// 16. SENSOR DISPLAY INCLUDING PIR MOTION
 // =====================================================
 
 function updateSensorDisplay() {
-    // Temperature
     setText(
         "sensorTemperature",
         formatNumber(currentTemperature, 1)
     );
 
-    // Humidity
     setText(
         "sensorHumidity",
         humidity === null ? "--" : humidity
     );
 
-    // Rain sensor
     setText(
         "rainValue",
         rainValue === null ? "--" : rainValue
@@ -929,7 +1395,6 @@ function updateSensorDisplay() {
                 : "No rain"
     );
 
-    // Ultrasonic sensor
     setText(
         "distanceValue",
         formatNumber(distanceCm, 2)
@@ -976,7 +1441,6 @@ function updateSensorDisplay() {
                 : "LOW"
     );
 
-    // Last sensor update
     setText(
         "lastSensorUpdate",
         lastSensorTimestamp
@@ -986,7 +1450,7 @@ function updateSensorDisplay() {
 }
 
 // =====================================================
-// 16. PIR VALUE CONVERSION
+// 17. PIR VALUE CONVERSION
 // =====================================================
 
 function toBooleanOrNull(value) {
@@ -1008,15 +1472,19 @@ function toBooleanOrNull(value) {
         const normalised = value.trim().toLowerCase();
 
         if (
-            ["true", "1", "high", "motion", "detected",
-             "motion detected", "yes"].includes(normalised)
+            [
+                "true", "1", "high", "motion", "detected",
+                "motion detected", "yes"
+            ].includes(normalised)
         ) {
             return true;
         }
 
         if (
-            ["false", "0", "low", "no motion", "clear",
-             "not detected", "no"].includes(normalised)
+            [
+                "false", "0", "low", "no motion", "clear",
+                "not detected", "no"
+            ].includes(normalised)
         ) {
             return false;
         }
@@ -1026,7 +1494,6 @@ function toBooleanOrNull(value) {
 }
 
 function getPirValue(data) {
-    // Supports common names used by different backends.
     const possibleFields = [
         "pir_motion",
         "motion_detected",
@@ -1054,7 +1521,7 @@ function getPirValue(data) {
 }
 
 // =====================================================
-// 17. LOAD SENSOR DATA FROM BACKEND
+// 18. LOAD SENSOR DATA FROM BACKEND
 // =====================================================
 
 async function loadLatestSensorReading() {
@@ -1096,10 +1563,8 @@ async function loadLatestSensorReading() {
         distanceCm =
             toNumberOrNull(data.distance_cm);
 
-        // Read PIR sensor data.
         pirMotion = getPirValue(data);
 
-        // Read rain detection.
         if (typeof data.rain_detected === "boolean") {
             rainDetected = data.rain_detected;
         } else if (
@@ -1137,7 +1602,6 @@ async function loadLatestSensorReading() {
 
         console.log("Latest ESP32 sensor data:", data);
 
-        // Record a motion event when the sensor detects movement.
         if (pirMotion === true) {
             console.log("PIR sensor: Motion detected.");
         }
@@ -1158,7 +1622,7 @@ async function loadLatestSensorReading() {
 }
 
 // =====================================================
-// 18. LOAD RFID ACCESS EVENT
+// 19. LOAD RFID ACCESS EVENT
 // =====================================================
 
 async function loadLatestAccessEvent() {
@@ -1211,7 +1675,7 @@ async function loadLatestAccessEvent() {
 }
 
 // =====================================================
-// 19. RFID DEMONSTRATION BUTTONS
+// 20. RFID DEMONSTRATION BUTTONS
 // =====================================================
 
 function simulateValidCard() {
@@ -1301,7 +1765,7 @@ function updateSecurityDisplay() {
 }
 
 // =====================================================
-// 20. EVENT HISTORY
+// 21. EVENT HISTORY
 // =====================================================
 
 function addEvent(title, details, status, icon) {
@@ -1409,7 +1873,7 @@ function clearHistory() {
 }
 
 // =====================================================
-// 21. TOAST NOTIFICATIONS
+// 22. TOAST NOTIFICATIONS
 // =====================================================
 
 function showToast(message) {
@@ -1426,7 +1890,7 @@ function showToast(message) {
 }
 
 // =====================================================
-// 22. HELPER FUNCTIONS
+// 23. HELPER FUNCTIONS
 // =====================================================
 
 function setText(id, value) {

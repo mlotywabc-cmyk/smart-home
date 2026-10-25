@@ -1,3 +1,4 @@
+
 /* General settings */
 :root {
     --background: #101713;
@@ -659,9 +660,6 @@ input:focus-visible {
 /* Other pages */
 .section-intro {
     margin-bottom: 23px;
-}
-
-.section-intro {
     align-items: flex-start;
 }
 
@@ -950,6 +948,60 @@ td:first-child {
     transform: translateY(0);
 }
 
+/* Automatic Device Timers */
+.timer-panel {
+    margin-top: 22px;
+}
+
+.timer-panel form {
+    display: grid;
+    gap: 18px;
+}
+
+.timer-device {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    padding: 18px;
+    background: #202b23;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.timer-device h4 {
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+    color: var(--green);
+    font-size: 14px;
+}
+
+.timer-device label {
+    align-self: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.timer-device input[type="time"] {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+    color: var(--text);
+    color-scheme: dark;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+#saveDeviceTimers,
+#clearDeviceTimers {
+    justify-self: start;
+}
+
+#timerStatusText {
+    color: var(--muted);
+    font-size: 12px;
+}
+
 /* Smaller screens */
 @media (max-width: 1100px) {
     .sidebar {
@@ -1074,6 +1126,21 @@ td:first-child {
     .history-heading .secondary-button {
         padding: 9px;
         font-size: 11px;
+    }
+}
+
+@media (max-width: 480px) {
+    .timer-device {
+        grid-template-columns: 1fr;
+    }
+
+    .timer-device h4 {
+        grid-column: 1;
+    }
+
+    #saveDeviceTimers,
+    #clearDeviceTimers {
+        width: 100%;
     }
 }
 

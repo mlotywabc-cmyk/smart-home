@@ -369,7 +369,178 @@
                     </p>
                 </div>
 
+                <!-- Existing device controls -->
                 <div id="allDevices" class="device-grid"></div>
+
+                <!-- NEW: Device timer settings -->
+                <article class="panel timer-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Automatic Device Timers</h3>
+                            <p class="muted">
+                                Set daily ON and OFF times for your lights
+                                and fan.
+                            </p>
+                        </div>
+                        <span class="status-pill">Daily schedule</span>
+                    </div>
+
+                    <p class="muted timer-instructions">
+                        Choose the time each device should switch on and off.
+                        Use the 24-hour time format.
+                    </p>
+
+                    <form id="deviceTimerForm">
+
+                        <!-- Bedroom light timer -->
+                        <div class="timer-device">
+                            <div class="timer-device-heading">
+                                <span class="timer-icon">💡</span>
+                                <div>
+                                    <h4>Bedroom Light</h4>
+                                    <p class="muted">
+                                        Schedule your bedroom light.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="timer-fields">
+                                <div class="timer-field">
+                                    <label for="bedroomLightOnTime">
+                                        Switch ON at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="bedroomLightOnTime"
+                                        name="bedroomLightOnTime"
+                                        required
+                                    >
+                                </div>
+
+                                <div class="timer-field">
+                                    <label for="bedroomLightOffTime">
+                                        Switch OFF at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="bedroomLightOffTime"
+                                        name="bedroomLightOffTime"
+                                        required
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Living room light timer -->
+                        <div class="timer-device">
+                            <div class="timer-device-heading">
+                                <span class="timer-icon">💡</span>
+                                <div>
+                                    <h4>Living Room Light</h4>
+                                    <p class="muted">
+                                        Schedule your living room light.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="timer-fields">
+                                <div class="timer-field">
+                                    <label for="livingRoomLightOnTime">
+                                        Switch ON at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="livingRoomLightOnTime"
+                                        name="livingRoomLightOnTime"
+                                        required
+                                    >
+                                </div>
+
+                                <div class="timer-field">
+                                    <label for="livingRoomLightOffTime">
+                                        Switch OFF at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="livingRoomLightOffTime"
+                                        name="livingRoomLightOffTime"
+                                        required
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fan timer -->
+                        <div class="timer-device">
+                            <div class="timer-device-heading">
+                                <span class="timer-icon">🌀</span>
+                                <div>
+                                    <h4>Fan</h4>
+                                    <p class="muted">
+                                        Schedule your fan.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="timer-fields">
+                                <div class="timer-field">
+                                    <label for="fanOnTime">
+                                        Switch ON at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="fanOnTime"
+                                        name="fanOnTime"
+                                        required
+                                    >
+                                </div>
+
+                                <div class="timer-field">
+                                    <label for="fanOffTime">
+                                        Switch OFF at
+                                    </label>
+                                    <input
+                                        type="time"
+                                        id="fanOffTime"
+                                        name="fanOffTime"
+                                        required
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="timer-actions">
+                            <button
+                                type="submit"
+                                id="saveDeviceTimers"
+                                class="primary-button"
+                            >
+                                Save Timer Settings
+                            </button>
+
+                            <button
+                                type="button"
+                                id="clearDeviceTimers"
+                                class="secondary-button"
+                            >
+                                Clear Timers
+                            </button>
+                        </div>
+
+                        <p id="timerMessage" class="message"
+                           role="status" aria-live="polite"></p>
+
+                        <div class="timer-status">
+                            <span class="status-dot"></span>
+                            <p id="timerStatusText">
+                                Timer settings have not been configured.
+                            </p>
+                        </div>
+
+                    </form>
+                </article>
+                <!-- END: Device timer settings -->
+
             </section>
 
             <!-- Climate -->
