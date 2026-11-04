@@ -1,5 +1,8 @@
 
-/* General settings */
+/* =====================================================
+   GENERAL SETTINGS
+===================================================== */
+
 :root {
     --background: #101713;
     --sidebar: #151e18;
@@ -29,7 +32,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
@@ -38,7 +42,8 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
     outline: 2px solid var(--green);
     outline-offset: 3px;
 }
@@ -59,7 +64,10 @@ input:focus-visible {
     letter-spacing: 1.8px;
 }
 
-/* Login screen */
+/* =====================================================
+   LOGIN SCREEN
+===================================================== */
+
 .login-screen {
     min-height: 100vh;
     display: flex;
@@ -131,7 +139,10 @@ input:focus-visible {
     font-size: 12px;
 }
 
-/* Buttons */
+/* =====================================================
+   BUTTONS
+===================================================== */
+
 .primary-button,
 .secondary-button,
 .logout-button,
@@ -192,7 +203,10 @@ input:focus-visible {
     color: white;
 }
 
-/* Main application layout */
+/* =====================================================
+   MAIN APPLICATION LAYOUT
+===================================================== */
+
 .app {
     min-height: 100vh;
 }
@@ -387,7 +401,10 @@ input:focus-visible {
     letter-spacing: 1px;
 }
 
-/* Dashboard cards */
+/* =====================================================
+   DASHBOARD CARDS
+===================================================== */
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -556,7 +573,10 @@ input:focus-visible {
     left: 22px;
 }
 
-/* Temperature display */
+/* =====================================================
+   TEMPERATURE DISPLAY
+===================================================== */
+
 .temperature-circle {
     width: 190px;
     height: 190px;
@@ -657,7 +677,10 @@ input:focus-visible {
     font-size: 11px;
 }
 
-/* Other pages */
+/* =====================================================
+   OTHER PAGES
+===================================================== */
+
 .section-intro {
     margin-bottom: 23px;
     align-items: flex-start;
@@ -790,6 +813,10 @@ input:focus-visible {
     color: var(--green);
 }
 
+/* =====================================================
+   SECURITY AND DOOR ACCESS
+===================================================== */
+
 .security-card {
     text-align: center;
 }
@@ -864,7 +891,298 @@ input:focus-visible {
     font-size: 12px;
 }
 
-/* Event history table */
+/* =====================================================
+   PERMANENT RFID TAGS
+===================================================== */
+
+.visitor-panel {
+    margin-top: 20px;
+}
+
+.permanent-tag-list {
+    display: grid;
+    gap: 12px;
+}
+
+.permanent-tag-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: #202b23;
+    border: 1px solid #31543a;
+    border-radius: 11px;
+}
+
+.visitor-tag-icon {
+    width: 45px;
+    height: 45px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: var(--green-dark);
+    border-radius: 11px;
+    font-size: 22px;
+}
+
+.visitor-tag-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.visitor-tag-details h4 {
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.visitor-tag-details p {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.access-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.active-badge {
+    color: var(--green);
+    background: var(--green-dark);
+}
+
+.expired-badge {
+    color: var(--orange);
+    background: #3b3020;
+}
+
+.revoked-badge {
+    color: var(--red);
+    background: #392222;
+}
+
+/* =====================================================
+   VISITOR REGISTRATION FORM
+===================================================== */
+
+.visitor-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.timer-field {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.timer-field label {
+    color: #dce8df;
+    font-size: 12px;
+}
+
+.timer-field input,
+.timer-field select {
+    width: 100%;
+    min-width: 0;
+    padding: 12px 13px;
+    color: var(--text);
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.timer-field input::placeholder {
+    color: #718176;
+}
+
+.timer-field select {
+    color-scheme: dark;
+    cursor: pointer;
+}
+
+.timer-field input:focus,
+.timer-field select:focus {
+    border-color: var(--green);
+}
+
+.timer-field small {
+    font-size: 11px;
+}
+
+.visitor-start-option {
+    max-width: 500px;
+    margin-top: 20px;
+}
+
+#customDurationContainer {
+    max-width: 350px;
+    margin-top: 18px;
+}
+
+.visitor-registration-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 15px;
+    color: var(--orange);
+    background: #352d20;
+    border: 1px solid #52432b;
+    border-radius: 9px;
+}
+
+.visitor-registration-notice > span {
+    font-size: 18px;
+}
+
+.visitor-registration-notice p {
+    font-size: 12px;
+}
+
+/* =====================================================
+   VISITOR TAG LIST
+===================================================== */
+
+.visitor-tag-list {
+    display: grid;
+    gap: 13px;
+}
+
+.visitor-tag-card {
+    padding: 17px;
+    background: #202b23;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+}
+
+.visitor-tag-card.expired {
+    border-color: #66502c;
+}
+
+.visitor-tag-card.revoked {
+    border-color: #623737;
+    opacity: 0.75;
+}
+
+.visitor-tag-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.visitor-tag-card-top h4 {
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.visitor-tag-card-top p {
+    color: var(--muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.visitor-tag-information {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.visitor-information-item {
+    padding: 12px;
+    background: #18221b;
+    border-radius: 8px;
+}
+
+.visitor-information-item span {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.visitor-information-item strong {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.visitor-countdown {
+    margin-bottom: 14px;
+    padding: 13px;
+    background: #17281c;
+    border: 1px solid #31543a;
+    border-radius: 9px;
+}
+
+.visitor-countdown span {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+
+.visitor-countdown strong {
+    color: var(--green);
+    font-size: 23px;
+    font-variant-numeric: tabular-nums;
+}
+
+.visitor-countdown.expired-countdown {
+    background: #352d20;
+    border-color: #66502c;
+}
+
+.visitor-countdown.expired-countdown strong {
+    color: var(--orange);
+}
+
+.visitor-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.revoke-visitor-button {
+    padding: 9px 13px;
+    color: var(--red);
+    background: #392222;
+    border: 1px solid #623737;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    transition: 0.2s ease;
+}
+
+.revoke-visitor-button:hover {
+    background: #522b2b;
+    border-color: var(--red);
+}
+
+.revoke-visitor-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.visitor-panel .empty-message {
+    padding: 30px 15px;
+    background: #202b23;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+}
+
+/* =====================================================
+   EVENT HISTORY TABLE
+===================================================== */
+
 .history-table-wrap {
     width: 100%;
     overflow-x: auto;
@@ -916,6 +1234,10 @@ td:first-child {
     font-size: 13px;
 }
 
+/* =====================================================
+   FOOTER
+===================================================== */
+
 .footer {
     padding: 20px 0 5px;
     color: #718176;
@@ -923,7 +1245,10 @@ td:first-child {
     font-size: 11px;
 }
 
-/* Notifications */
+/* =====================================================
+   NOTIFICATIONS
+===================================================== */
+
 .toast {
     position: fixed;
     right: 25px;
@@ -948,7 +1273,10 @@ td:first-child {
     transform: translateY(0);
 }
 
-/* Automatic Device Timers */
+/* =====================================================
+   AUTOMATIC DEVICE TIMERS
+===================================================== */
+
 .timer-panel {
     margin-top: 22px;
 }
@@ -992,6 +1320,12 @@ td:first-child {
     border-radius: 8px;
 }
 
+.timer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 #saveDeviceTimers,
 #clearDeviceTimers {
     justify-self: start;
@@ -1002,8 +1336,12 @@ td:first-child {
     font-size: 12px;
 }
 
-/* Smaller screens */
+/* =====================================================
+   SMALLER SCREENS
+===================================================== */
+
 @media (max-width: 1100px) {
+
     .sidebar {
         width: 210px;
     }
@@ -1023,6 +1361,7 @@ td:first-child {
 }
 
 @media (max-width: 720px) {
+
     .sidebar {
         position: relative;
         width: 100%;
@@ -1127,9 +1466,31 @@ td:first-child {
         padding: 9px;
         font-size: 11px;
     }
+
+    .permanent-tag-item {
+        flex-wrap: wrap;
+    }
+
+    .permanent-tag-item .access-badge {
+        margin-left: 59px;
+    }
+
+    .visitor-tag-card-top {
+        flex-wrap: wrap;
+    }
+
+    .visitor-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .visitor-start-option,
+    #customDurationContainer {
+        max-width: none;
+    }
 }
 
 @media (max-width: 480px) {
+
     .timer-device {
         grid-template-columns: 1fr;
     }
@@ -1142,9 +1503,34 @@ td:first-child {
     #clearDeviceTimers {
         width: 100%;
     }
+
+    .visitor-information-item {
+        padding: 10px;
+    }
+
+    .visitor-countdown strong {
+        font-size: 20px;
+    }
+
+    .visitor-card-actions {
+        flex-direction: column;
+    }
+
+    .revoke-visitor-button {
+        width: 100%;
+    }
+
+    .timer-actions {
+        flex-direction: column;
+    }
+
+    .timer-actions button {
+        width: 100%;
+    }
 }
 
 @media (max-width: 380px) {
+
     .stats-grid {
         grid-template-columns: 1fr;
     }
@@ -1156,5 +1542,9 @@ td:first-child {
     .topbar-right {
         flex-direction: column;
         align-items: flex-end;
+    }
+
+    .visitor-information-grid {
+        grid-template-columns: 1fr;
     }
 }

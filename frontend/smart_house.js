@@ -98,15 +98,22 @@ let targetTemperature = 23;
 let doorLocked = true;
 let lastCard = "None";
 let lastAccessResult = "No scan yet";
+
 let events = [];
 let toastTimer;
 
-// Timer storage
+// Device timer storage
 const DEVICE_TIMERS_KEY = "smartHomeDeviceTimers";
 const TIMER_FIRED_PREFIX = "smartHomeTimerFired_";
 
 let timerCheckInterval = null;
 let timerCommandInProgress = {};
+
+// Visitor RFID variables
+let visitorTags = [];
+let visitorRefreshInterval = null;
+let visitorCountdownInterval = null;
+let visitorRequestInProgress = false;
 
 // Cached HTML elements
 const loginScreen = document.getElementById("loginScreen");
@@ -141,14 +148,31 @@ function initialiseWebsite() {
     updateSensorDisplay();
     renderEvents();
 
-    // Start the automatic device timers.
+    // Start automatic device timers.
     initialiseDeviceTimers();
 
+    // Load sensor information.
     loadLatestSensorReading();
     setInterval(loadLatestSensorReading, 10000);
 
+    // Load the latest RFID access event.
     loadLatestAccessEvent();
     setInterval(loadLatestAccessEvent, 10000);
+
+    // Load visitor RFID tags.
+    loadVisitorTags();
+
+    // Refresh visitor information from the backend.
+    visitorRefreshInterval = setInterval(
+        loadVisitorTags,
+        15000
+    );
+
+    // Update displayed countdowns every second.
+    visitorCountdownInterval = setInterval(
+        updateVisitorCountdowns,
+        1000
+    );
 }
 
 // =====================================================
@@ -235,7 +259,7 @@ function addEventListeners() {
         );
     }
 
-    // Automatic device timers
+    // Automatic device timers.
     const deviceTimerForm =
         document.getElementById("deviceTimerForm");
 
@@ -255,6 +279,52 @@ function addEventListeners() {
             clearDeviceTimers
         );
     }
+
+    // Visitor RFID registration.
+    const visitorTagForm =
+        document.getElementById("visitorTagForm");
+
+    if (visitorTagForm) {
+        visitorTagForm.addEventListener(
+            "submit",
+            registerVisitorTag
+        );
+    }
+
+    // Visitor duration selector.
+    const visitorDuration =
+        document.getElementById("visitorDuration");
+
+    if (visitorDuration) {
+        visitorDuration.addEventListener(
+            "change",
+            updateCustomDurationVisibility
+        );
+    }
+
+    // Clear visitor registration form.
+    const clearVisitorFormButton =
+        document.getElementById("clearVisitorFormButton");
+
+    if (clearVisitorFormButton) {
+        clearVisitorFormButton.addEventListener(
+            "click",
+            clearVisitorForm
+        );
+    }
+
+    // Refresh visitor list.
+    const refreshVisitorTagsButton =
+        document.getElementById("refreshVisitorTagsButton");
+
+    if (refreshVisitorTagsButton) {
+        refreshVisitorTagsButton.addEventListener(
+            "click",
+            loadVisitorTags
+        );
+    }
+
+    updateCustomDurationVisibility();
 }
 
 // =====================================================
@@ -300,6 +370,10 @@ function handleLogin(event) {
         renderEvents();
 
         showToast("Welcome to your SmartHome dashboard.");
+
+        // Refresh visitor information after login.
+        loadVisitorTags();
+
     } else {
         if (loginMessage) {
             loginMessage.textContent =
@@ -381,6 +455,10 @@ function showPage(pageName) {
 
     if (pageName === "history") {
         renderEvents();
+    }
+
+    if (pageName === "security") {
+        loadVisitorTags();
     }
 }
 
@@ -810,7 +888,6 @@ function initialiseDeviceTimers() {
     loadDeviceTimersIntoForm();
     updateTimerStatusText();
 
-    // Check the configured times every five seconds.
     checkDeviceTimers();
 
     if (timerCheckInterval !== null) {
@@ -862,7 +939,6 @@ function saveDeviceTimers(event) {
 
     const timers = getTimerInputValues();
 
-    // Every device must have two different times.
     for (const [deviceId, times] of Object.entries(timers)) {
         if (!times.on || !times.off) {
             showTimerMessage(
@@ -906,7 +982,6 @@ function saveDeviceTimers(event) {
 
         showToast("Device timer settings saved.");
 
-        // Check whether a selected time matches the current time.
         checkDeviceTimers();
 
     } catch (error) {
@@ -974,7 +1049,6 @@ function clearDeviceTimers() {
     try {
         localStorage.removeItem(DEVICE_TIMERS_KEY);
 
-        // Remove previous execution records for these timers.
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const key = localStorage.key(i);
 
@@ -1031,7 +1105,7 @@ function updateTimerStatusText() {
             return;
         }
 
-        const timers = JSON.parse(saved);
+        JSON.parse(saved);
 
         status.textContent =
             "Daily timers are saved for the bedroom light, " +
@@ -1099,19 +1173,11 @@ function checkDeviceTimers() {
         if (!times) continue;
 
         if (times.on === currentTime) {
-            runScheduledDeviceCommand(
-                deviceId,
-                true,
-                today
-            );
+            runScheduledDeviceCommand(deviceId, true, today);
         }
 
         if (times.off === currentTime) {
-            runScheduledDeviceCommand(
-                deviceId,
-                false,
-                today
-            );
+            runScheduledDeviceCommand(deviceId, false, today);
         }
     }
 }
@@ -1129,7 +1195,6 @@ async function runScheduledDeviceCommand(deviceId, turnOn, dateKey) {
         deviceId + "_" +
         action;
 
-    // Do not send the same scheduled command more than once per day.
     try {
         if (localStorage.getItem(firedKey)) return;
     } catch (error) {
@@ -1137,15 +1202,12 @@ async function runScheduledDeviceCommand(deviceId, turnOn, dateKey) {
         return;
     }
 
-    // Prevent duplicate requests while a command is being sent.
     const progressKey = deviceId + "_" + action;
 
     if (timerCommandInProgress[progressKey]) return;
 
     timerCommandInProgress[progressKey] = true;
 
-    // Mark this scheduled action before sending the request.
-    // If it fails, remove the record so it can retry during this minute.
     try {
         localStorage.setItem(firedKey, "pending");
     } catch (error) {
@@ -1182,7 +1244,6 @@ async function runScheduledDeviceCommand(deviceId, turnOn, dateKey) {
             );
         }
 
-        // Record that the command was successfully accepted.
         localStorage.setItem(firedKey, "done");
 
         if (device) {
@@ -1216,7 +1277,6 @@ async function runScheduledDeviceCommand(deviceId, turnOn, dateKey) {
             error
         );
 
-        // Allow another attempt if the scheduled minute is still active.
         try {
             localStorage.removeItem(firedKey);
         } catch (storageError) {
@@ -1411,7 +1471,6 @@ function updateSensorDisplay() {
                     : "Clear"
     );
 
-    // PIR motion sensor
     setText("pirPin", PIR_GPIO_PIN);
 
     setText(
@@ -1602,10 +1661,6 @@ async function loadLatestSensorReading() {
 
         console.log("Latest ESP32 sensor data:", data);
 
-        if (pirMotion === true) {
-            console.log("PIR sensor: Motion detected.");
-        }
-
     } catch (error) {
         console.error("Could not load sensor data:", error);
 
@@ -1765,7 +1820,628 @@ function updateSecurityDisplay() {
 }
 
 // =====================================================
-// 21. EVENT HISTORY
+// 21. VISITOR RFID TAG MANAGEMENT
+// =====================================================
+
+// Show or hide the custom visitor duration field.
+function updateCustomDurationVisibility() {
+    const durationSelect =
+        document.getElementById("visitorDuration");
+
+    const customContainer =
+        document.getElementById("customDurationContainer");
+
+    if (!durationSelect || !customContainer) return;
+
+    const isCustom = durationSelect.value === "custom";
+
+    customContainer.classList.toggle("hidden", !isCustom);
+
+    const customInput =
+        document.getElementById("customVisitorDuration");
+
+    if (customInput) {
+        customInput.required = isCustom;
+    }
+}
+
+// Convert the selected duration into minutes.
+function getVisitorDurationMinutes() {
+    const durationSelect =
+        document.getElementById("visitorDuration");
+
+    if (!durationSelect) {
+        throw new Error("Visitor duration selector was not found.");
+    }
+
+    if (durationSelect.value === "custom") {
+        const customInput =
+            document.getElementById("customVisitorDuration");
+
+        const hours = Number(customInput?.value);
+
+        if (
+            !Number.isInteger(hours) ||
+            hours < 1 ||
+            hours > 720
+        ) {
+            throw new Error(
+                "Enter a custom duration between 1 and 720 hours."
+            );
+        }
+
+        return hours * 60;
+    }
+
+    const minutes = Number(durationSelect.value);
+
+    if (
+        !Number.isInteger(minutes) ||
+        minutes < 1 ||
+        minutes > 43200
+    ) {
+        throw new Error("Please select a valid access duration.");
+    }
+
+    return minutes;
+}
+
+// Register a new visitor card.
+async function registerVisitorTag(event) {
+    event.preventDefault();
+
+    if (visitorRequestInProgress) return;
+
+    const nameInput =
+        document.getElementById("visitorName");
+
+    const uidInput =
+        document.getElementById("visitorCardUID");
+
+    const submitButton =
+        document.getElementById("registerVisitorTagButton");
+
+    const visitorName = nameInput?.value.trim() || "";
+    const cardUID = uidInput?.value.trim().toUpperCase() || "";
+
+    if (!visitorName) {
+        showVisitorMessage(
+            "Please enter the visitor's name.",
+            "error"
+        );
+        return;
+    }
+
+    if (!cardUID) {
+        showVisitorMessage(
+            "Please enter the visitor's RFID card UID.",
+            "error"
+        );
+        return;
+    }
+
+    let durationMinutes;
+
+    try {
+        durationMinutes = getVisitorDurationMinutes();
+    } catch (error) {
+        showVisitorMessage(error.message, "error");
+        return;
+    }
+
+    visitorRequestInProgress = true;
+
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Registering...";
+    }
+
+    try {
+        showVisitorMessage(
+            "Registering visitor card...",
+            "info"
+        );
+
+        const response = await fetch(
+            API_BASE + "/api/visitor-tags",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    visitor_name: visitorName,
+                    card_uid: cardUID,
+                    duration_minutes: durationMinutes
+                })
+            }
+        );
+
+        const result = await readResponse(response);
+
+        if (!response.ok) {
+            throw new Error(
+                result.message ||
+                result.error ||
+                "The visitor card could not be registered."
+            );
+        }
+
+        addEvent(
+            "Visitor RFID registered",
+            "A visitor card was registered for " +
+            visitorName + ". Access duration: " +
+            formatDuration(durationMinutes * 60) +
+            ". The countdown starts on the first successful scan.",
+            "Success",
+            "⌑"
+        );
+
+        renderEvents();
+
+        showVisitorMessage(
+            "Visitor card registered successfully. The countdown will start when this card is scanned successfully for the first time.",
+            "success"
+        );
+
+        clearVisitorForm();
+        await loadVisitorTags();
+
+        showToast("Visitor RFID card registered.");
+
+    } catch (error) {
+        console.error("Visitor registration failed:", error);
+
+        showVisitorMessage(
+            error.message || "Could not register visitor card.",
+            "error"
+        );
+
+    } finally {
+        visitorRequestInProgress = false;
+
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "Register Visitor Tag";
+        }
+    }
+}
+
+// Clear visitor form fields.
+function clearVisitorForm() {
+    const form = document.getElementById("visitorTagForm");
+
+    if (form) {
+        form.reset();
+    }
+
+    updateCustomDurationVisibility();
+
+    const message = document.getElementById("visitorTagMessage");
+
+    if (message) {
+        message.textContent = "";
+        message.className = "message";
+    }
+}
+
+// Display visitor messages.
+function showVisitorMessage(message, type) {
+    const element =
+        document.getElementById("visitorTagMessage");
+
+    if (!element) return;
+
+    element.textContent = message;
+    element.className = "message " + type;
+}
+
+// Load registered visitor cards from the backend.
+async function loadVisitorTags() {
+    const list = document.getElementById("visitorTagList");
+    const empty = document.getElementById("emptyVisitorTags");
+
+    try {
+        const response = await fetch(
+            API_BASE + "/api/visitor-tags",
+            { cache: "no-store" }
+        );
+
+        const result = await readResponse(response);
+
+        if (!response.ok) {
+            throw new Error(
+                result.message ||
+                result.error ||
+                "Could not load visitor cards."
+            );
+        }
+
+        // The backend returns { visitors: [...] }.
+        visitorTags = Array.isArray(result.visitors)
+            ? result.visitors
+            : [];
+
+        renderVisitorTags();
+
+    } catch (error) {
+        console.error("Could not load visitor cards:", error);
+
+        if (list && visitorTags.length === 0) {
+            list.innerHTML = "";
+        }
+
+        if (empty) {
+            empty.classList.remove("hidden");
+            empty.textContent =
+                "Could not load visitor cards. Check your backend connection.";
+        }
+
+        updateVisitorSummary();
+    }
+}
+
+// Render all visitor cards.
+function renderVisitorTags() {
+    const list = document.getElementById("visitorTagList");
+    const empty = document.getElementById("emptyVisitorTags");
+
+    if (!list) {
+        updateVisitorSummary();
+        return;
+    }
+
+    list.innerHTML = "";
+
+    if (visitorTags.length === 0) {
+        if (empty) {
+            empty.classList.remove("hidden");
+            empty.textContent = "No visitor cards have been registered.";
+        }
+
+        updateVisitorSummary();
+        return;
+    }
+
+    if (empty) {
+        empty.classList.add("hidden");
+    }
+
+    visitorTags.forEach(visitor => {
+        list.appendChild(createVisitorTagCard(visitor));
+    });
+
+    updateVisitorSummary();
+}
+
+// Create one visitor card safely using textContent.
+function createVisitorTagCard(visitor) {
+    const card = document.createElement("article");
+    card.className = "visitor-tag-item";
+
+    const details = document.createElement("div");
+    details.className = "visitor-tag-details";
+
+    const name = document.createElement("h4");
+    name.textContent =
+        visitor.visitor_name || "Unnamed visitor";
+
+    const uid = document.createElement("p");
+    uid.textContent =
+        "Card UID: " + (visitor.card_uid || "Unknown");
+
+    const duration = document.createElement("p");
+    duration.textContent =
+        "Allowed duration: " +
+        formatDuration(
+            Number(visitor.duration_minutes || 0) * 60
+        );
+
+    const registered = document.createElement("p");
+    registered.textContent =
+        "Registered: " + formatDate(visitor.registered_at);
+
+    const countdown = document.createElement("p");
+    countdown.className = "visitor-countdown";
+
+    const status = document.createElement("span");
+    status.className =
+        "access-badge " + getVisitorStatusClass(visitor);
+
+    status.textContent =
+        visitor.access_status || "Unknown";
+
+    details.append(name, uid, duration, registered, countdown);
+
+    if (visitor.first_used_at) {
+        const firstUsed = document.createElement("p");
+
+        firstUsed.textContent =
+            "First scan: " + formatDate(visitor.first_used_at);
+
+        details.appendChild(firstUsed);
+    }
+
+    if (visitor.expires_at) {
+        const expiry = document.createElement("p");
+
+        expiry.textContent =
+            "Expires: " + formatDate(visitor.expires_at);
+
+        details.appendChild(expiry);
+    }
+
+    const top = document.createElement("div");
+    top.className = "visitor-tag-top";
+
+    const icon = document.createElement("div");
+    icon.className = "visitor-tag-icon";
+    icon.textContent = "⌑";
+
+    top.append(icon, status);
+
+    const actions = document.createElement("div");
+    actions.className = "visitor-tag-actions";
+
+    if (
+        String(visitor.access_status).toLowerCase() !== "revoked"
+    ) {
+        const revokeButton = document.createElement("button");
+
+        revokeButton.type = "button";
+        revokeButton.className = "visitor-revoke-button";
+        revokeButton.textContent = "Revoke Access";
+
+        revokeButton.addEventListener("click", () => {
+            revokeVisitorTag(visitor.id, visitor.visitor_name);
+        });
+
+        actions.appendChild(revokeButton);
+    } else {
+        const revokedText = document.createElement("span");
+        revokedText.textContent = "Access revoked";
+        actions.appendChild(revokedText);
+    }
+
+    card.append(top, details, actions);
+
+    // Store the countdown element for live updates.
+    card.dataset.visitorId = String(visitor.id);
+
+    countdown.dataset.visitorId = String(visitor.id);
+
+    updateSingleVisitorCountdown(visitor, countdown);
+
+    return card;
+}
+
+// Return a CSS class based on visitor status.
+function getVisitorStatusClass(visitor) {
+    const status = String(
+        visitor.access_status || ""
+    ).toLowerCase();
+
+    if (status === "active") return "active-badge";
+    if (status === "expired") return "expired-badge";
+    if (status === "revoked") return "revoked-badge";
+    if (status === "not activated") return "waiting-badge";
+
+    return "waiting-badge";
+}
+
+// Update the remaining time for every visitor card.
+function updateVisitorCountdowns() {
+    visitorTags.forEach(visitor => {
+        const countdown = document.querySelector(
+            '[data-visitor-id="' +
+            CSS.escape(String(visitor.id)) +
+            '"].visitor-countdown'
+        );
+
+        if (countdown) {
+            updateSingleVisitorCountdown(visitor, countdown);
+        }
+    });
+}
+
+// Update one visitor's countdown.
+function updateSingleVisitorCountdown(visitor, element) {
+    if (!element) return;
+
+    const status = String(
+        visitor.access_status || ""
+    ).toLowerCase();
+
+    if (status === "revoked") {
+        element.textContent = "Access has been revoked.";
+        return;
+    }
+
+    if (status === "expired") {
+        element.textContent = "Visitor access has expired.";
+        return;
+    }
+
+    if (!visitor.first_used_at) {
+        element.textContent =
+            "Countdown starts after the first successful scan.";
+
+        return;
+    }
+
+    let remaining = Number(visitor.remaining_seconds);
+
+    if (!Number.isFinite(remaining)) {
+        remaining = 0;
+    }
+
+    // Calculate the countdown using the server expiry time.
+    if (visitor.expires_at) {
+        const expiryTime = new Date(visitor.expires_at).getTime();
+
+        if (Number.isFinite(expiryTime)) {
+            remaining = Math.max(
+                0,
+                Math.floor((expiryTime - Date.now()) / 1000)
+            );
+        }
+    }
+
+    if (remaining <= 0) {
+        element.textContent = "Access time has ended.";
+
+        const badge = element
+            .closest(".visitor-tag-item")
+            ?.querySelector(".access-badge");
+
+        if (badge) {
+            badge.textContent = "Expired";
+            badge.className = "access-badge expired-badge";
+        }
+
+        return;
+    }
+
+    element.textContent =
+        "Time remaining: " + formatDuration(remaining);
+}
+
+// Format seconds into days, hours, minutes and seconds.
+function formatDuration(totalSeconds) {
+    let seconds = Math.max(
+        0,
+        Math.floor(Number(totalSeconds) || 0)
+    );
+
+    const days = Math.floor(seconds / 86400);
+    seconds %= 86400;
+
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
+
+    const parts = [];
+
+    if (days > 0) parts.push(days + "d");
+    if (hours > 0) parts.push(hours + "h");
+    if (minutes > 0) parts.push(minutes + "m");
+
+    if (seconds > 0 || parts.length === 0) {
+        parts.push(seconds + "s");
+    }
+
+    return parts.join(" ");
+}
+
+// Format a date returned by the backend.
+function formatDate(value) {
+    if (!value) return "Not available";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+
+    return date.toLocaleString("en-ZA");
+}
+
+// Revoke a visitor card.
+async function revokeVisitorTag(visitorId, visitorName) {
+    if (!visitorId) {
+        showToast("Visitor card ID is missing.");
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Are you sure you want to revoke access for " +
+        (visitorName || "this visitor") + "?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(
+            API_BASE + "/api/visitor-tags/" +
+            encodeURIComponent(visitorId),
+            {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        const result = await readResponse(response);
+
+        if (!response.ok) {
+            throw new Error(
+                result.message ||
+                result.error ||
+                "Could not revoke visitor access."
+            );
+        }
+
+        addEvent(
+            "Visitor access revoked",
+            "Access was revoked for " +
+            (visitorName || "a visitor") + ".",
+            "Warning",
+            "⌑"
+        );
+
+        renderEvents();
+
+        showToast("Visitor access revoked.");
+
+        await loadVisitorTags();
+
+    } catch (error) {
+        console.error("Could not revoke visitor access:", error);
+
+        showToast(
+            error.message || "Could not revoke visitor access."
+        );
+    }
+}
+
+// Update visitor summary numbers if the HTML contains them.
+function updateVisitorSummary() {
+    const permanentCount =
+        document.getElementById("permanentTagCount");
+
+    const activeCount =
+        document.getElementById("activeVisitorCount");
+
+    const expiredCount =
+        document.getElementById("expiredVisitorCount");
+
+    const activeVisitors = visitorTags.filter(visitor =>
+        String(visitor.access_status).toLowerCase() === "active"
+    ).length;
+
+    const expiredVisitors = visitorTags.filter(visitor =>
+        String(visitor.access_status).toLowerCase() === "expired"
+    ).length;
+
+    // There are two permanent RFID cards.
+    if (permanentCount) {
+        permanentCount.textContent = "2";
+    }
+
+    if (activeCount) {
+        activeCount.textContent = activeVisitors;
+    }
+
+    if (expiredCount) {
+        expiredCount.textContent = expiredVisitors;
+    }
+}
+
+// =====================================================
+// 22. EVENT HISTORY
 // =====================================================
 
 function addEvent(title, details, status, icon) {
@@ -1873,7 +2549,7 @@ function clearHistory() {
 }
 
 // =====================================================
-// 22. TOAST NOTIFICATIONS
+// 23. TOAST NOTIFICATIONS
 // =====================================================
 
 function showToast(message) {
@@ -1890,7 +2566,7 @@ function showToast(message) {
 }
 
 // =====================================================
-// 23. HELPER FUNCTIONS
+// 24. HELPER FUNCTIONS
 // =====================================================
 
 function setText(id, value) {

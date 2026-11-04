@@ -9,7 +9,7 @@
 </head>
 <body>
 
-    <!-- Login screen -->
+    <!-- LOGIN SCREEN -->
     <section id="loginScreen" class="login-screen">
         <div class="login-card">
             <div class="brand-icon">⌂</div>
@@ -36,10 +36,11 @@
         </div>
     </section>
 
-    <!-- Main application -->
+    <!-- MAIN APPLICATION -->
     <div id="app" class="app hidden">
 
         <aside class="sidebar">
+
             <div class="sidebar-brand">
                 <span class="brand-icon small">⌂</span>
                 <div>
@@ -51,6 +52,7 @@
             <p class="menu-heading">MAIN MENU</p>
 
             <nav class="navigation">
+
                 <button class="nav-link active" data-page="dashboard">
                     <span>▦</span> Dashboard
                 </button>
@@ -70,9 +72,11 @@
                 <button class="nav-link" data-page="history">
                     <span>◷</span> Event History
                 </button>
+
             </nav>
 
             <div class="sidebar-bottom">
+
                 <div class="connection-indicator">
                     <span class="status-dot"></span>
                     <div>
@@ -84,31 +88,42 @@
                 <button id="logoutButton" class="logout-button">
                     ↪ Sign out
                 </button>
+
             </div>
+
         </aside>
 
         <main class="main-content">
 
-            <!-- Top navigation bar -->
+            <!-- TOP BAR -->
             <header class="topbar">
+
                 <div>
                     <p class="eyebrow">SMART HOME CONTROL</p>
                     <h1 id="pageTitle">Dashboard</h1>
                 </div>
 
                 <div class="topbar-right">
+
                     <div class="date-display">
                         <span id="currentDate">Loading date...</span>
                         <strong id="currentTime">--:--:--</strong>
                     </div>
+
                     <div class="user-avatar">A</div>
+
                 </div>
+
             </header>
 
-            <!-- Dashboard -->
+            <!-- ========================================= -->
+            <!-- DASHBOARD -->
+            <!-- ========================================= -->
+
             <section id="dashboardPage" class="page">
 
                 <div class="welcome-row">
+
                     <div>
                         <h2>Welcome home!</h2>
                         <p class="muted">
@@ -119,9 +134,10 @@
                     <span id="sensorConnectionBadge" class="demo-badge">
                         CONNECTING TO SENSORS
                     </span>
+
                 </div>
 
-                <!-- Summary cards -->
+                <!-- SUMMARY CARDS -->
                 <div class="stats-grid">
 
                     <article class="stat-card">
@@ -129,6 +145,7 @@
                             <span>Connected devices</span>
                             <span class="stat-icon">◉</span>
                         </div>
+
                         <h2 id="deviceCount">7</h2>
                         <p class="muted">Devices available</p>
                     </article>
@@ -138,6 +155,7 @@
                             <span>Devices switched on</span>
                             <span class="stat-icon green">⌁</span>
                         </div>
+
                         <h2 id="activeCount">0</h2>
                         <p class="muted">Currently active</p>
                     </article>
@@ -147,9 +165,11 @@
                             <span>Room temperature</span>
                             <span class="stat-icon orange">♨</span>
                         </div>
+
                         <h2>
                             <span id="dashboardTemperature">--</span>°C
                         </h2>
+
                         <p class="muted">Live sensor reading</p>
                     </article>
 
@@ -158,51 +178,66 @@
                             <span>Security status</span>
                             <span class="stat-icon green">⌑</span>
                         </div>
+
                         <h2 id="securitySummary">Locked</h2>
                         <p class="muted">Door access status</p>
                     </article>
 
                 </div>
 
-                <!-- Device and climate overview -->
+                <!-- DEVICE AND CLIMATE OVERVIEW -->
                 <div class="content-grid">
 
                     <article class="panel">
+
                         <div class="panel-heading">
+
                             <div>
                                 <h3>Device overview</h3>
                                 <p class="muted">
                                     Control your home devices.
                                 </p>
                             </div>
+
                             <button class="text-button" data-goto="devices">
                                 View all
                             </button>
+
                         </div>
 
                         <div id="dashboardDevices" class="device-list"></div>
+
                     </article>
 
                     <article class="panel">
+
                         <div class="panel-heading">
+
                             <div>
                                 <h3>Climate overview</h3>
                                 <p class="muted">Current room conditions.</p>
                             </div>
+
                             <span id="climateStatus" class="status-pill">
                                 Waiting
                             </span>
+
                         </div>
 
                         <div class="temperature-circle">
+
                             <span>ROOM TEMPERATURE</span>
+
                             <strong>
                                 <span id="climateTemperature">--</span>°C
                             </strong>
+
                             <small>Live sensor reading</small>
+
                         </div>
 
                         <div class="climate-details">
+
                             <div>
                                 <span>Humidity</span>
                                 <strong id="humidityValue">--</strong>
@@ -214,19 +249,23 @@
                                     <span id="dashboardTarget">23</span>°C
                                 </strong>
                             </div>
+
                         </div>
 
                         <button class="primary-button full-width"
                                 data-goto="climate">
                             Manage climate
                         </button>
+
                     </article>
 
                 </div>
 
-                <!-- Live sensor monitoring -->
+                <!-- LIVE SENSOR MONITORING -->
                 <article class="panel sensor-panel">
+
                     <div class="panel-heading">
+
                         <div>
                             <h3>Live Sensor Monitoring</h3>
                             <p class="muted">
@@ -237,15 +276,15 @@
                         <span id="sensorUpdateStatus" class="status-pill">
                             Waiting for data
                         </span>
+
                     </div>
 
                     <div class="sensor-grid">
 
-                        <!-- PIR motion sensor -->
                         <article class="sensor-card">
+
                             <div class="sensor-card-icon">🚶</div>
                             <p class="muted">PIR Motion Sensor</p>
-
                             <h2 id="pirStatus">Waiting...</h2>
 
                             <p class="sensor-description">
@@ -262,13 +301,13 @@
                                 GPIO Pin:
                                 <strong id="pirPin">15</strong>
                             </p>
+
                         </article>
 
-                        <!-- Rain sensor -->
                         <article class="sensor-card">
+
                             <div class="sensor-card-icon">☂</div>
                             <p class="muted">Rain Sensor</p>
-
                             <h2 id="rainStatus">Waiting...</h2>
 
                             <p class="sensor-description">
@@ -280,10 +319,11 @@
                                 Detection:
                                 <strong id="rainDetection">--</strong>
                             </p>
+
                         </article>
 
-                        <!-- Ultrasonic sensor -->
                         <article class="sensor-card">
+
                             <div class="sensor-card-icon">↔</div>
                             <p class="muted">Ultrasonic Sensor</p>
 
@@ -300,10 +340,11 @@
                                 Status:
                                 <strong id="distanceStatus">Waiting...</strong>
                             </p>
+
                         </article>
 
-                        <!-- Temperature sensor -->
                         <article class="sensor-card">
+
                             <div class="sensor-card-icon">♨</div>
                             <p class="muted">Temperature</p>
 
@@ -315,10 +356,11 @@
                             <p class="sensor-description">
                                 Live temperature reading
                             </p>
+
                         </article>
 
-                        <!-- Humidity sensor -->
                         <article class="sensor-card">
+
                             <div class="sensor-card-icon">💧</div>
                             <p class="muted">Humidity</p>
 
@@ -330,6 +372,7 @@
                             <p class="sensor-description">
                                 Live humidity reading
                             </p>
+
                         </article>
 
                     </div>
@@ -338,11 +381,14 @@
                         Last sensor update:
                         <span id="lastSensorUpdate">Not received yet</span>
                     </p>
+
                 </article>
 
-                <!-- Recent activity -->
+                <!-- RECENT ACTIVITY -->
                 <article class="panel recent-panel">
+
                     <div class="panel-heading">
+
                         <div>
                             <h3>Recent activity</h3>
                             <p class="muted">
@@ -353,15 +399,21 @@
                         <button class="text-button" data-goto="history">
                             View history
                         </button>
+
                     </div>
 
                     <div id="dashboardEvents" class="event-list"></div>
+
                 </article>
 
             </section>
 
-            <!-- Devices -->
+            <!-- ========================================= -->
+            <!-- DEVICES -->
+            <!-- ========================================= -->
+
             <section id="devicesPage" class="page hidden">
+
                 <div class="section-intro">
                     <h2>Device management</h2>
                     <p class="muted">
@@ -369,12 +421,13 @@
                     </p>
                 </div>
 
-                <!-- Existing device controls -->
                 <div id="allDevices" class="device-grid"></div>
 
-                <!-- NEW: Device timer settings -->
+                <!-- AUTOMATIC DEVICE TIMERS -->
                 <article class="panel timer-panel">
+
                     <div class="panel-heading">
+
                         <div>
                             <h3>Automatic Device Timers</h3>
                             <p class="muted">
@@ -382,7 +435,9 @@
                                 and fan.
                             </p>
                         </div>
+
                         <span class="status-pill">Daily schedule</span>
+
                     </div>
 
                     <p class="muted timer-instructions">
@@ -392,10 +447,12 @@
 
                     <form id="deviceTimerForm">
 
-                        <!-- Bedroom light timer -->
+                        <!-- BEDROOM LIGHT -->
                         <div class="timer-device">
+
                             <div class="timer-device-heading">
                                 <span class="timer-icon">💡</span>
+
                                 <div>
                                     <h4>Bedroom Light</h4>
                                     <p class="muted">
@@ -405,36 +462,39 @@
                             </div>
 
                             <div class="timer-fields">
+
                                 <div class="timer-field">
                                     <label for="bedroomLightOnTime">
                                         Switch ON at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="bedroomLightOnTime"
-                                        name="bedroomLightOnTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="bedroomLightOnTime"
+                                           name="bedroomLightOnTime"
+                                           required>
                                 </div>
 
                                 <div class="timer-field">
                                     <label for="bedroomLightOffTime">
                                         Switch OFF at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="bedroomLightOffTime"
-                                        name="bedroomLightOffTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="bedroomLightOffTime"
+                                           name="bedroomLightOffTime"
+                                           required>
                                 </div>
+
                             </div>
+
                         </div>
 
-                        <!-- Living room light timer -->
+                        <!-- LIVING ROOM LIGHT -->
                         <div class="timer-device">
+
                             <div class="timer-device-heading">
                                 <span class="timer-icon">💡</span>
+
                                 <div>
                                     <h4>Living Room Light</h4>
                                     <p class="muted">
@@ -444,36 +504,39 @@
                             </div>
 
                             <div class="timer-fields">
+
                                 <div class="timer-field">
                                     <label for="livingRoomLightOnTime">
                                         Switch ON at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="livingRoomLightOnTime"
-                                        name="livingRoomLightOnTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="livingRoomLightOnTime"
+                                           name="livingRoomLightOnTime"
+                                           required>
                                 </div>
 
                                 <div class="timer-field">
                                     <label for="livingRoomLightOffTime">
                                         Switch OFF at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="livingRoomLightOffTime"
-                                        name="livingRoomLightOffTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="livingRoomLightOffTime"
+                                           name="livingRoomLightOffTime"
+                                           required>
                                 </div>
+
                             </div>
+
                         </div>
 
-                        <!-- Fan timer -->
+                        <!-- FAN -->
                         <div class="timer-device">
+
                             <div class="timer-device-heading">
                                 <span class="timer-icon">🌀</span>
+
                                 <div>
                                     <h4>Fan</h4>
                                     <p class="muted">
@@ -483,48 +546,47 @@
                             </div>
 
                             <div class="timer-fields">
+
                                 <div class="timer-field">
                                     <label for="fanOnTime">
                                         Switch ON at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="fanOnTime"
-                                        name="fanOnTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="fanOnTime"
+                                           name="fanOnTime"
+                                           required>
                                 </div>
 
                                 <div class="timer-field">
                                     <label for="fanOffTime">
                                         Switch OFF at
                                     </label>
-                                    <input
-                                        type="time"
-                                        id="fanOffTime"
-                                        name="fanOffTime"
-                                        required
-                                    >
+
+                                    <input type="time"
+                                           id="fanOffTime"
+                                           name="fanOffTime"
+                                           required>
                                 </div>
+
                             </div>
+
                         </div>
 
                         <div class="timer-actions">
-                            <button
-                                type="submit"
-                                id="saveDeviceTimers"
-                                class="primary-button"
-                            >
+
+                            <button type="submit"
+                                    id="saveDeviceTimers"
+                                    class="primary-button">
                                 Save Timer Settings
                             </button>
 
-                            <button
-                                type="button"
-                                id="clearDeviceTimers"
-                                class="secondary-button"
-                            >
+                            <button type="button"
+                                    id="clearDeviceTimers"
+                                    class="secondary-button">
                                 Clear Timers
                             </button>
+
                         </div>
 
                         <p id="timerMessage" class="message"
@@ -532,19 +594,24 @@
 
                         <div class="timer-status">
                             <span class="status-dot"></span>
+
                             <p id="timerStatusText">
                                 Timer settings have not been configured.
                             </p>
                         </div>
 
                     </form>
+
                 </article>
-                <!-- END: Device timer settings -->
 
             </section>
 
-            <!-- Climate -->
+            <!-- ========================================= -->
+            <!-- CLIMATE CONTROL -->
+            <!-- ========================================= -->
+
             <section id="climatePage" class="page hidden">
+
                 <div class="section-intro">
                     <h2>Climate control</h2>
                     <p class="muted">
@@ -555,6 +622,7 @@
                 <div class="climate-page-grid">
 
                     <article class="panel large-climate-panel">
+
                         <p class="eyebrow">CURRENT ROOM TEMPERATURE</p>
 
                         <div class="large-temperature">
@@ -567,6 +635,7 @@
                         </p>
 
                         <div class="climate-metric-grid">
+
                             <div class="metric-box">
                                 <span>Humidity</span>
                                 <strong id="largeHumidity">--</strong>
@@ -578,10 +647,13 @@
                                     <span id="targetDisplay">23</span>°C
                                 </strong>
                             </div>
+
                         </div>
+
                     </article>
 
                     <article class="panel">
+
                         <h3>Temperature settings</h3>
 
                         <p class="muted">
@@ -594,7 +666,10 @@
 
                         <input id="temperatureSlider"
                                class="temperature-slider"
-                               type="range" min="16" max="30" value="23">
+                               type="range"
+                               min="16"
+                               max="30"
+                               value="23">
 
                         <div class="slider-labels">
                             <span>16°C</span>
@@ -607,36 +682,93 @@
                         </button>
 
                         <p id="temperatureMessage" class="message"></p>
+
                     </article>
 
                 </div>
+
             </section>
 
-            <!-- Security -->
+            <!-- ========================================= -->
+            <!-- SECURITY AND RFID -->
+            <!-- ========================================= -->
+
             <section id="securityPage" class="page hidden">
+
                 <div class="section-intro">
+
                     <h2>Security and RFID</h2>
+
                     <p class="muted">
-                        Test access events using a simulated RFID card.
+                        Manage permanent RFID cards and temporary visitor access.
                     </p>
+
                 </div>
 
+                <!-- ACCESS SUMMARY -->
+                <div class="stats-grid">
+
+                    <article class="stat-card">
+
+                        <div class="stat-top">
+                            <span>Permanent tags</span>
+                            <span class="stat-icon green">⌑</span>
+                        </div>
+
+                        <h2 id="permanentTagCount">2</h2>
+                        <p class="muted">Never expire</p>
+
+                    </article>
+
+                    <article class="stat-card">
+
+                        <div class="stat-top">
+                            <span>Active visitor tags</span>
+                            <span class="stat-icon">◉</span>
+                        </div>
+
+                        <h2 id="activeVisitorCount">0</h2>
+                        <p class="muted">Temporary access</p>
+
+                    </article>
+
+                    <article class="stat-card">
+
+                        <div class="stat-top">
+                            <span>Expired visitor tags</span>
+                            <span class="stat-icon orange">◷</span>
+                        </div>
+
+                        <h2 id="expiredVisitorCount">0</h2>
+                        <p class="muted">Access expired</p>
+
+                    </article>
+
+                </div>
+
+                <!-- DOOR ACCESS CONTROL -->
                 <div class="security-grid">
 
                     <article class="panel security-card">
+
                         <div class="security-symbol">⌑</div>
+
                         <h3>Door access control</h3>
 
                         <p class="muted">
-                            Use the demo buttons to simulate an RFID scan.
+                            Test RFID access events.
                         </p>
 
                         <div class="door-status">
+
                             <span id="doorStatusDot" class="status-dot"></span>
+
                             <strong id="doorStatus">Door locked</strong>
+
                         </div>
 
                         <div class="button-stack">
+
                             <button id="validRfidButton"
                                     class="primary-button full-width">
                                 Simulate authorised card
@@ -651,10 +783,13 @@
                                     class="secondary-button full-width">
                                 Lock door
                             </button>
+
                         </div>
+
                     </article>
 
                     <article class="panel">
+
                         <h3>Access information</h3>
 
                         <div class="info-row">
@@ -679,19 +814,314 @@
 
                         <p class="notice">
                             The demo buttons simulate access events.
-                            Real RFID events can be displayed separately
-                            when connected to the backend.
+                            Real RFID events are handled through the backend.
                         </p>
+
                     </article>
 
                 </div>
+
+                <!-- PERMANENT RFID TAGS -->
+                <article class="panel visitor-panel">
+
+                    <div class="panel-heading">
+
+                        <div>
+                            <h3>Permanent RFID Tags</h3>
+                            <p class="muted">
+                                Your two original registered cards.
+                            </p>
+                        </div>
+
+                        <span class="status-pill">
+                            Permanent access
+                        </span>
+
+                    </div>
+
+                    <div class="permanent-tag-list">
+
+                        <div class="permanent-tag-item">
+
+                            <div class="visitor-tag-icon">🔑</div>
+
+                            <div class="visitor-tag-details">
+                                <h4>Permanent Tag 1</h4>
+                                <p class="muted">
+                                    Existing registered RFID card
+                                </p>
+                            </div>
+
+                            <span class="access-badge active-badge">
+                                Never expires
+                            </span>
+
+                        </div>
+
+                        <div class="permanent-tag-item">
+
+                            <div class="visitor-tag-icon">🔑</div>
+
+                            <div class="visitor-tag-details">
+                                <h4>Permanent Tag 2</h4>
+                                <p class="muted">
+                                    Existing registered RFID card
+                                </p>
+                            </div>
+
+                            <span class="access-badge active-badge">
+                                Never expires
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <p class="notice">
+                        These two permanent RFID tags must remain registered.
+                        Visitor management must not modify or delete them.
+                    </p>
+
+                </article>
+
+                <!-- REGISTER VISITOR RFID TAG -->
+                <article class="panel visitor-panel">
+
+                    <div class="panel-heading">
+
+                        <div>
+                            <h3>Register Visitor RFID Tag</h3>
+                            <p class="muted">
+                                Give a visitor temporary access to your home.
+                            </p>
+                        </div>
+
+                        <span class="status-pill">
+                            Temporary access
+                        </span>
+
+                    </div>
+
+                    <form id="visitorTagForm">
+
+                        <div class="visitor-form-grid">
+
+                            <!-- VISITOR NAME -->
+                            <div class="timer-field">
+
+                                <label for="visitorName">
+                                    Visitor name
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="visitorName"
+                                    name="visitorName"
+                                    placeholder="Enter visitor name"
+                                    maxlength="60"
+                                    required
+                                >
+
+                            </div>
+
+                            <!-- RFID UID -->
+                            <div class="timer-field">
+
+                                <label for="visitorCardUID">
+                                    RFID Card UID
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="visitorCardUID"
+                                    name="visitorCardUID"
+                                    placeholder="Enter or scan card UID"
+                                    autocomplete="off"
+                                    maxlength="32"
+                                    required
+                                >
+
+                            </div>
+
+                            <!-- ACCESS DURATION -->
+                            <div class="timer-field">
+
+                                <label for="visitorDuration">
+                                    Access duration
+                                </label>
+
+                                <select
+                                    id="visitorDuration"
+                                    name="visitorDuration"
+                                    required
+                                >
+
+                                    <option value="30">
+                                        30 minutes
+                                    </option>
+
+                                    <option value="60" selected>
+                                        1 hour
+                                    </option>
+
+                                    <option value="120">
+                                        2 hours
+                                    </option>
+
+                                    <option value="240">
+                                        4 hours
+                                    </option>
+
+                                    <option value="480">
+                                        8 hours
+                                    </option>
+
+                                    <option value="720">
+                                        12 hours
+                                    </option>
+
+                                    <option value="1440">
+                                        24 hours
+                                    </option>
+
+                                    <option value="custom">
+                                        Custom duration
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+                        </div>
+
+                        <!-- CUSTOM DURATION -->
+                        <div
+                            id="customDurationContainer"
+                            class="timer-field hidden"
+                        >
+
+                            <label for="customVisitorDuration">
+                                Custom duration (hours)
+                            </label>
+
+                            <input
+                                type="number"
+                                id="customVisitorDuration"
+                                name="customVisitorDuration"
+                                min="1"
+                                max="720"
+                                step="1"
+                                placeholder="Enter number of hours"
+                            >
+
+                            <small class="muted">
+                                Maximum visitor access is 720 hours (30 days).
+                            </small>
+
+                        </div>
+
+                        <!-- COUNTDOWN INFORMATION -->
+                        <div class="visitor-registration-notice">
+
+                            <span>ℹ</span>
+
+                            <p>
+                                The visitor's access countdown starts
+                                automatically when their RFID card is
+                                scanned successfully for the first time.
+
+                                The card will be rejected automatically
+                                after the selected duration expires.
+                            </p>
+
+                        </div>
+
+                        <!-- REGISTRATION BUTTONS -->
+                        <div class="timer-actions">
+
+                            <button
+                                type="submit"
+                                id="registerVisitorTagButton"
+                                class="primary-button"
+                            >
+                                Register Visitor Tag
+                            </button>
+
+                            <button
+                                type="reset"
+                                id="clearVisitorFormButton"
+                                class="secondary-button"
+                            >
+                                Clear Form
+                            </button>
+
+                        </div>
+
+                        <!-- REGISTRATION MESSAGE -->
+                        <p
+                            id="visitorTagMessage"
+                            class="message"
+                            role="status"
+                            aria-live="polite"
+                        ></p>
+
+                    </form>
+
+                </article>
+
+                <!-- REGISTERED VISITOR TAGS -->
+                <article class="panel visitor-panel">
+
+                    <div class="panel-heading">
+
+                        <div>
+                            <h3>Registered Visitor Tags</h3>
+
+                            <p class="muted">
+                                Monitor visitor access and remaining time.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            id="refreshVisitorTagsButton"
+                            class="secondary-button"
+                        >
+                            Refresh Visitors
+                        </button>
+
+                    </div>
+
+                    <div
+                        id="visitorTagList"
+                        class="visitor-tag-list"
+                        aria-live="polite"
+                    >
+
+                        <div
+                            id="emptyVisitorTags"
+                            class="empty-message"
+                        >
+                            No visitor RFID tags registered yet.
+                        </div>
+
+                    </div>
+
+                </article>
+
             </section>
 
-            <!-- Event history -->
+            <!-- ========================================= -->
+            <!-- EVENT HISTORY -->
+            <!-- ========================================= -->
+
             <section id="historyPage" class="page hidden">
+
                 <div class="section-intro history-heading">
+
                     <div>
                         <h2>Event history</h2>
+
                         <p class="muted">
                             Review actions performed in this browser session.
                         </p>
@@ -701,11 +1131,15 @@
                             class="secondary-button">
                         Clear history
                     </button>
+
                 </div>
 
                 <article class="panel">
+
                     <div class="history-table-wrap">
+
                         <table>
+
                             <thead>
                                 <tr>
                                     <th>Time</th>
@@ -716,26 +1150,33 @@
                             </thead>
 
                             <tbody id="historyTable"></tbody>
+
                         </table>
+
                     </div>
 
                     <p id="emptyHistory" class="empty-message hidden">
                         No events recorded yet.
                     </p>
+
                 </article>
+
             </section>
 
+            <!-- FOOTER -->
             <footer class="footer">
                 SmartHome Automation · Live sensor dashboard
             </footer>
 
         </main>
+
     </div>
 
-    <!-- Toast notifications -->
+    <!-- TOAST NOTIFICATIONS -->
     <div id="toast" class="toast" role="status"></div>
 
-    <!-- JavaScript -->
+    <!-- JAVASCRIPT -->
     <script src="smart_house.js"></script>
+
 </body>
 </html>
