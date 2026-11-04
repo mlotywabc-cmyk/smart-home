@@ -1,4 +1,3 @@
-
 "use strict";
 
 const express = require("express");
@@ -22,11 +21,43 @@ const pool = new Pool({
         : false
 });
 
-// Use South African local time for automatic schedules.
 const TIME_ZONE = "Africa/Johannesburg";
 
 // =====================================================
-// 2. DATABASE INITIALIZATION
+// 2. PERMANENT RFID TAGS
+// =====================================================
+
+// Add your TWO existing permanent RFID UIDs to your
+// environment variables. Separate them with commas.
+//
+// Example:
+// PERMANENT_RFID_UIDS=YOUR_FIRST_UID,YOUR_SECOND_UID
+//
+// Do not put visitor UIDs in this variable.
+
+function normalizeCardUID(uid) {
+    if (typeof uid !== "string") {
+        return "";
+    }
+
+    return uid.trim().replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+function getPermanentRFIDTags() {
+    return new Set(
+        (process.env.PERMANENT_RFID_UIDS || "")
+            .split(",")
+            .map(normalizeCardUID)
+            .filter(Boolean)
+    );
+}
+
+function isPermanentRFIDTag(uid) {
+    return getPermanentRFIDTags().has(normalizeCardUID(uid));
+}
+
+// =====================================================
+// 3. DATABASE INITIALIZATION
 // =====================================================
 
 async function initializeDatabase() {
@@ -79,7 +110,6 @@ async function initializeDatabase() {
             ON device_commands (id)
             WHERE status = 'pending';
 
-        -- Daily automatic timer settings.
         CREATE TABLE IF NOT EXISTS device_timers (
             device_name VARCHAR(50) PRIMARY KEY,
             on_time TIME NOT NULL,
@@ -88,8 +118,6 @@ async function initializeDatabase() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
-        -- Prevent the same scheduled action from being queued
-        -- more than once on the same South African calendar date.
         CREATE TABLE IF NOT EXISTS device_timer_runs (
             id BIGSERIAL PRIMARY KEY,
             device_name VARCHAR(50) NOT NULL,
@@ -98,13 +126,42 @@ async function initializeDatabase() {
             executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE (device_name, action, scheduled_date)
         );
+
+        -- VISITOR RFID TAGS
+        CREATE TABLE IF NOT EXISTS visitor_tags (
+            id BIGSERIAL PRIMARY KEY,
+            visitor_name VARCHAR(100) NOT NULL,
+            card_uid VARCHAR(100) NOT NULL UNIQUE,
+            duration_minutes INTEGER NOT NULL,
+            registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            first_used_at TIMESTAMPTZ,
+            expires_at TIMESTAMPTZ,
+            revoked_at TIMESTAMPTZ
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_visitor_tags_card_uid
+            ON visitor_tags (card_uid);
+
+        CREATE INDEX IF NOT EXISTS idx_visitor_tags_expiry
+            ON visitor_tags (expires_at);
     `);
 
     console.log("Database tables are ready.");
+
+    const permanentTags = getPermanentRFIDTags();
+
+    if (permanentTags.size !== 2) {
+        console.warn(
+            "WARNING: Configure exactly TWO permanent RFID UIDs " +
+            "using PERMANENT_RFID_UIDS in your environment variables."
+        );
+    } else {
+        console.log("Two permanent RFID tags configured.");
+    }
 }
 
 // =====================================================
-// 3. ESP32 DEVICE AUTHENTICATION
+// 4. ESP32 DEVICE AUTHENTICATION
 // =====================================================
 
 function requireDeviceToken(req, res, next) {
@@ -130,33 +187,27 @@ function requireDeviceToken(req, res, next) {
 }
 
 // =====================================================
-// 4. ALLOWED DEVICE COMMANDS
+// 5. ALLOWED DEVICE COMMANDS
 // =====================================================
 
 const ALLOWED_COMMANDS = new Set([
-    // Front door
     "door_open",
     "door_close",
 
-    // Garage door
     "garage_open",
     "garage_close",
 
-    // Rain cover
     "rain_open",
     "rain_close",
     "rain_auto",
 
-    // Fan
     "fan_on",
     "fan_off",
     "fan_auto",
 
-    // Bedroom light
     "bedroom_light_on",
     "bedroom_light_off",
 
-    // Living room light
     "living_light_on",
     "living_light_off"
 ]);
@@ -172,8 +223,9 @@ function validateCommand(command) {
         return true;
     }
 
-    // Accept temperature commands, for example temperature:24.5.
-    const match = normalized.match(/^temperature:(\d+(?:\.\d+)?)$/);
+    const match = normalized.match(
+        /^temperature:(\d+(?:\.\d+)?)$/
+    );
 
     if (!match) {
         return false;
@@ -185,7 +237,7 @@ function validateCommand(command) {
 }
 
 // =====================================================
-// 5. TIMER CONFIGURATION
+// 6. TIMER CONFIGURATION
 // =====================================================
 
 const TIMER_DEVICES = {
@@ -193,10 +245,12 @@ const TIMER_DEVICES = {
         onCommand: "bedroom_light_on",
         offCommand: "bedroom_light_off"
     },
+
     living_light: {
         onCommand: "living_light_on",
         offCommand: "living_light_off"
     },
+
     fan: {
         onCommand: "fan_on",
         offCommand: "fan_off"
@@ -236,12 +290,8 @@ function getSouthAfricanDateTime() {
 }
 
 // =====================================================
-// 6. AUTOMATIC TIMER SCHEDULER
+// 7. AUTOMATIC TIMER SCHEDULER
 // =====================================================
-
-// Checks schedules and queues commands for the ESP32.
-// It checks every 10 seconds, but only queues each action
-// once per device per South African calendar date.
 
 let timerCheckRunning = false;
 
@@ -268,7 +318,6 @@ async function checkAutomaticTimers() {
                 continue;
             }
 
-            // PostgreSQL TIME values can be returned with seconds.
             const onTime = String(timer.on_time).slice(0, 5);
             const offTime = String(timer.off_time).slice(0, 5);
 
@@ -292,8 +341,6 @@ async function checkAutomaticTimers() {
             try {
                 await client.query("BEGIN");
 
-                // A unique database constraint prevents duplicates
-                // if the scheduler checks the same minute repeatedly.
                 const runResult = await client.query(
                     `
                     INSERT INTO device_timer_runs (
@@ -317,7 +364,6 @@ async function checkAutomaticTimers() {
                     continue;
                 }
 
-                // Queue the command for the existing ESP32 polling API.
                 await client.query(
                     `
                     INSERT INTO device_commands (command)
@@ -330,9 +376,9 @@ async function checkAutomaticTimers() {
 
                 console.log(
                     `[TIMER] ${timer.device_name}: ${action} ` +
-                    `at ${current.time} on ${current.date}. ` +
-                    `Command queued: ${command}`
+                    `at ${current.time} on ${current.date}.`
                 );
+
             } catch (error) {
                 try {
                     await client.query("ROLLBACK");
@@ -362,13 +408,14 @@ async function checkAutomaticTimers() {
 }
 
 // =====================================================
-// 7. HOME PAGE AND HEALTH CHECK
+// 8. HOME PAGE AND HEALTH CHECK
 // =====================================================
 
 app.get("/", (req, res) => {
     res.json({
         message: "Smart Home API is running",
-        timers: "enabled"
+        timers: "enabled",
+        visitorRFID: "enabled"
     });
 });
 
@@ -394,7 +441,7 @@ app.get("/api/health", async (req, res) => {
 });
 
 // =====================================================
-// 8. SENSOR READINGS AND PIR MOTION
+// 9. SENSOR READINGS AND PIR MOTION
 // =====================================================
 
 app.post("/api/sensors", async (req, res) => {
@@ -492,6 +539,7 @@ app.post("/api/sensors", async (req, res) => {
             message: "Sensor readings saved",
             reading: result.rows[0]
         });
+
     } catch (error) {
         console.error("Sensor upload error:", error.message);
 
@@ -511,6 +559,7 @@ app.get("/api/sensors/latest", async (req, res) => {
         `);
 
         res.json(result.rows[0] ?? null);
+
     } catch (error) {
         console.error("Latest sensor error:", error.message);
 
@@ -530,6 +579,7 @@ app.get("/api/sensors", async (req, res) => {
         `);
 
         res.json(result.rows);
+
     } catch (error) {
         console.error("Sensor history error:", error.message);
 
@@ -540,7 +590,481 @@ app.get("/api/sensors", async (req, res) => {
 });
 
 // =====================================================
-// 9. RFID ACCESS EVENTS
+// 10. VISITOR RFID MANAGEMENT
+// =====================================================
+
+// Register a new visitor tag.
+//
+// Expected body:
+//
+// {
+//     "visitor_name": "John",
+//     "card_uid": "VISITOR_CARD_UID",
+//     "duration_minutes": 120
+// }
+//
+// The timer starts on the FIRST successful scan.
+
+app.post("/api/visitor-tags", async (req, res) => {
+    try {
+        const {
+            visitor_name,
+            card_uid,
+            duration_minutes
+        } = req.body;
+
+        if (
+            typeof visitor_name !== "string" ||
+            !visitor_name.trim()
+        ) {
+            return res.status(400).json({
+                error: "Visitor name is required"
+            });
+        }
+
+        if (
+            typeof card_uid !== "string" ||
+            !card_uid.trim()
+        ) {
+            return res.status(400).json({
+                error: "RFID card UID is required"
+            });
+        }
+
+        if (
+            !Number.isInteger(duration_minutes) ||
+            duration_minutes < 1 ||
+            duration_minutes > 43200
+        ) {
+            return res.status(400).json({
+                error: "Duration must be between 1 and 43200 minutes"
+            });
+        }
+
+        const normalizedUID = normalizeCardUID(card_uid);
+
+        if (!normalizedUID) {
+            return res.status(400).json({
+                error: "Invalid RFID card UID"
+            });
+        }
+
+        // Never allow a permanent card to be registered
+        // as a visitor card.
+        if (isPermanentRFIDTag(normalizedUID)) {
+            return res.status(409).json({
+                error: "This is a permanent RFID tag and cannot be registered as a visitor tag"
+            });
+        }
+
+        const result = await pool.query(
+            `
+            INSERT INTO visitor_tags (
+                visitor_name,
+                card_uid,
+                duration_minutes
+            )
+            VALUES ($1, $2, $3)
+            RETURNING *
+            `,
+            [
+                visitor_name.trim(),
+                normalizedUID,
+                duration_minutes
+            ]
+        );
+
+        res.status(201).json({
+            message: "Visitor RFID tag registered successfully",
+            visitor: result.rows[0],
+            timer_starts: "On first successful scan"
+        });
+
+    } catch (error) {
+        if (error.code === "23505") {
+            return res.status(409).json({
+                error: "This RFID tag is already registered"
+            });
+        }
+
+        console.error("Visitor registration error:", error.message);
+
+        res.status(500).json({
+            error: "Could not register visitor RFID tag"
+        });
+    }
+});
+
+// Get all visitor tags.
+
+app.get("/api/visitor-tags", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                id,
+                visitor_name,
+                card_uid,
+                duration_minutes,
+                registered_at,
+                first_used_at,
+                expires_at,
+                revoked_at,
+                CASE
+                    WHEN revoked_at IS NOT NULL THEN 'Revoked'
+                    WHEN first_used_at IS NULL THEN 'Not activated'
+                    WHEN expires_at <= NOW() THEN 'Expired'
+                    ELSE 'Active'
+                END AS access_status,
+                CASE
+                    WHEN first_used_at IS NULL THEN NULL
+                    WHEN expires_at <= NOW() THEN 0
+                    WHEN revoked_at IS NOT NULL THEN 0
+                    ELSE GREATEST(
+                        0,
+                        EXTRACT(EPOCH FROM (expires_at - NOW()))::BIGINT
+                    )
+                END AS remaining_seconds
+            FROM visitor_tags
+            ORDER BY registered_at DESC
+        `);
+
+        res.json({
+            visitors: result.rows
+        });
+
+    } catch (error) {
+        console.error("Visitor list error:", error.message);
+
+        res.status(500).json({
+            error: "Could not load visitor tags"
+        });
+    }
+});
+
+// Revoke a visitor tag.
+// Revocation is permanent for that registration.
+
+app.delete("/api/visitor-tags/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        if (!Number.isInteger(id) || id < 1) {
+            return res.status(400).json({
+                error: "Invalid visitor tag ID"
+            });
+        }
+
+        const result = await pool.query(
+            `
+            UPDATE visitor_tags
+            SET revoked_at = COALESCE(revoked_at, NOW())
+            WHERE id = $1
+            RETURNING *
+            `,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: "Visitor tag not found"
+            });
+        }
+
+        res.json({
+            message: "Visitor RFID access revoked successfully",
+            visitor: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("Visitor revocation error:", error.message);
+
+        res.status(500).json({
+            error: "Could not revoke visitor RFID tag"
+        });
+    }
+});
+
+// =====================================================
+// 11. RFID AUTHORISATION FOR THE ESP32
+// =====================================================
+
+// IMPORTANT:
+// The ESP32 must call this endpoint for every RFID scan.
+//
+// It must send:
+// Header: X-Device-Token
+//
+// Body:
+// {
+//     "card_uid": "SCANNED_CARD_UID"
+// }
+//
+// The backend checks permanent tags first, then visitor tags.
+//
+// Visitor access starts on the first successful scan.
+// Expired or revoked visitor tags are denied.
+
+app.post(
+    "/api/rfid/authorize",
+    requireDeviceToken,
+    async (req, res) => {
+        try {
+            const { card_uid } = req.body;
+
+            if (
+                typeof card_uid !== "string" ||
+                !card_uid.trim()
+            ) {
+                return res.status(400).json({
+                    access_granted: false,
+                    error: "A valid card UID is required"
+                });
+            }
+
+            const normalizedUID = normalizeCardUID(card_uid);
+
+            // -----------------------------------------
+            // A. CHECK PERMANENT RFID TAGS
+            // -----------------------------------------
+
+            if (isPermanentRFIDTag(normalizedUID)) {
+                await pool.query(
+                    `
+                    INSERT INTO access_events (
+                        card_uid,
+                        event_type,
+                        access_granted
+                    )
+                    VALUES ($1, $2, TRUE)
+                    `,
+                    [
+                        normalizedUID,
+                        "PERMANENT_TAG_ACCESS"
+                    ]
+                );
+
+                return res.json({
+                    access_granted: true,
+                    tag_type: "permanent",
+                    reason: "Permanent RFID tag authorised"
+                });
+            }
+
+            // -----------------------------------------
+            // B. CHECK VISITOR RFID TAGS
+            // -----------------------------------------
+
+            const client = await pool.connect();
+
+            try {
+                await client.query("BEGIN");
+
+                const visitorResult = await client.query(
+                    `
+                    SELECT *
+                    FROM visitor_tags
+                    WHERE card_uid = $1
+                    FOR UPDATE
+                    `,
+                    [normalizedUID]
+                );
+
+                if (visitorResult.rows.length === 0) {
+                    await client.query(
+                        `
+                        INSERT INTO access_events (
+                            card_uid,
+                            event_type,
+                            access_granted
+                        )
+                        VALUES ($1, $2, FALSE)
+                        `,
+                        [
+                            normalizedUID,
+                            "UNKNOWN_TAG_DENIED"
+                        ]
+                    );
+
+                    await client.query("COMMIT");
+
+                    return res.status(403).json({
+                        access_granted: false,
+                        tag_type: "unknown",
+                        reason: "RFID tag is not registered"
+                    });
+                }
+
+                const visitor = visitorResult.rows[0];
+
+                // Revoked tags are always denied.
+                if (visitor.revoked_at !== null) {
+                    await client.query(
+                        `
+                        INSERT INTO access_events (
+                            card_uid,
+                            event_type,
+                            access_granted
+                        )
+                        VALUES ($1, $2, FALSE)
+                        `,
+                        [
+                            normalizedUID,
+                            "VISITOR_TAG_REVOKED"
+                        ]
+                    );
+
+                    await client.query("COMMIT");
+
+                    return res.status(403).json({
+                        access_granted: false,
+                        tag_type: "visitor",
+                        reason: "Visitor access has been revoked"
+                    });
+                }
+
+                // -------------------------------------
+                // C. START TIMER ON FIRST SCAN
+                // -------------------------------------
+
+                if (visitor.first_used_at === null) {
+                    const activationResult = await client.query(
+                        `
+                        UPDATE visitor_tags
+                        SET
+                            first_used_at = NOW(),
+                            expires_at =
+                                NOW() +
+                                (duration_minutes * INTERVAL '1 minute')
+                        WHERE id = $1
+                        RETURNING *
+                        `,
+                        [visitor.id]
+                    );
+
+                    const activatedVisitor =
+                        activationResult.rows[0];
+
+                    await client.query(
+                        `
+                        INSERT INTO access_events (
+                            card_uid,
+                            event_type,
+                            access_granted
+                        )
+                        VALUES ($1, $2, TRUE)
+                        `,
+                        [
+                            normalizedUID,
+                            "VISITOR_TAG_ACTIVATED"
+                        ]
+                    );
+
+                    await client.query("COMMIT");
+
+                    return res.json({
+                        access_granted: true,
+                        tag_type: "visitor",
+                        visitor_name: activatedVisitor.visitor_name,
+                        reason: "Visitor tag activated. Access granted.",
+                        first_used_at: activatedVisitor.first_used_at,
+                        expires_at: activatedVisitor.expires_at,
+                        duration_minutes: activatedVisitor.duration_minutes
+                    });
+                }
+
+                // -------------------------------------
+                // D. CHECK VISITOR EXPIRY
+                // -------------------------------------
+
+                const expiryResult = await client.query(
+                    `
+                    SELECT
+                        expires_at,
+                        expires_at > NOW() AS is_active
+                    FROM visitor_tags
+                    WHERE id = $1
+                    `,
+                    [visitor.id]
+                );
+
+                const expiry = expiryResult.rows[0];
+
+                if (!expiry.is_active) {
+                    await client.query(
+                        `
+                        INSERT INTO access_events (
+                            card_uid,
+                            event_type,
+                            access_granted
+                        )
+                        VALUES ($1, $2, FALSE)
+                        `,
+                        [
+                            normalizedUID,
+                            "VISITOR_TAG_EXPIRED"
+                        ]
+                    );
+
+                    await client.query("COMMIT");
+
+                    return res.status(403).json({
+                        access_granted: false,
+                        tag_type: "visitor",
+                        reason: "Visitor access has expired",
+                        expires_at: expiry.expires_at
+                    });
+                }
+
+                // -------------------------------------
+                // E. ACTIVE VISITOR ACCESS
+                // -------------------------------------
+
+                await client.query(
+                    `
+                    INSERT INTO access_events (
+                        card_uid,
+                        event_type,
+                        access_granted
+                    )
+                    VALUES ($1, $2, TRUE)
+                    `,
+                    [
+                        normalizedUID,
+                        "VISITOR_TAG_ACCESS"
+                    ]
+                );
+
+                await client.query("COMMIT");
+
+                return res.json({
+                    access_granted: true,
+                    tag_type: "visitor",
+                    visitor_name: visitor.visitor_name,
+                    reason: "Visitor access is active",
+                    expires_at: expiry.expires_at
+                });
+
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+
+            } finally {
+                client.release();
+            }
+
+        } catch (error) {
+            console.error("RFID authorisation error:", error.message);
+
+            res.status(500).json({
+                access_granted: false,
+                error: "Could not validate RFID tag"
+            });
+        }
+    }
+);
+
+// =====================================================
+// 12. RFID ACCESS EVENTS
 // =====================================================
 
 app.post("/api/access-events", async (req, res) => {
@@ -601,6 +1125,7 @@ app.post("/api/access-events", async (req, res) => {
             message: "Access event saved",
             event: result.rows[0]
         });
+
     } catch (error) {
         console.error("Access event error:", error.message);
 
@@ -620,6 +1145,7 @@ app.get("/api/access-events/latest", async (req, res) => {
         `);
 
         res.json(result.rows[0] ?? null);
+
     } catch (error) {
         console.error("Latest access event error:", error.message);
 
@@ -639,6 +1165,7 @@ app.get("/api/access-events", async (req, res) => {
         `);
 
         res.json(result.rows);
+
     } catch (error) {
         console.error("Access history error:", error.message);
 
@@ -649,7 +1176,7 @@ app.get("/api/access-events", async (req, res) => {
 });
 
 // =====================================================
-// 10. DEVICE STATUS
+// 13. DEVICE STATUS
 // =====================================================
 
 app.post("/api/devices", async (req, res) => {
@@ -680,6 +1207,7 @@ app.post("/api/devices", async (req, res) => {
             message: "Device status saved",
             device: result.rows[0]
         });
+
     } catch (error) {
         console.error("Device status error:", error.message);
 
@@ -702,6 +1230,7 @@ app.get("/api/devices", async (req, res) => {
         `);
 
         res.json(result.rows);
+
     } catch (error) {
         console.error("Device status read error:", error.message);
 
@@ -712,10 +1241,9 @@ app.get("/api/devices", async (req, res) => {
 });
 
 // =====================================================
-// 11. AUTOMATIC TIMER API
+// 14. AUTOMATIC TIMER API
 // =====================================================
 
-// Get the saved schedules for all three devices.
 app.get("/api/device-timers", async (req, res) => {
     try {
         const result = await pool.query(`
@@ -732,6 +1260,7 @@ app.get("/api/device-timers", async (req, res) => {
                 off_time: String(timer.off_time).slice(0, 5)
             }))
         });
+
     } catch (error) {
         console.error("Load timer settings error:", error.message);
 
@@ -741,21 +1270,6 @@ app.get("/api/device-timers", async (req, res) => {
     }
 });
 
-// Save one or more schedules.
-//
-// Expected body:
-// {
-//   "timers": [
-//     {
-//       "device_name": "bedroom_light",
-//       "on_time": "18:00",
-//       "off_time": "23:00",
-//       "enabled": true
-//     }
-//   ]
-// }
-//
-// The website can send all three devices in one request.
 app.put("/api/device-timers", async (req, res) => {
     const { timers } = req.body;
 
@@ -781,6 +1295,7 @@ app.put("/api/device-timers", async (req, res) => {
         }
 
         const { device_name, on_time, off_time } = timer;
+
         const enabled = timer.enabled === undefined
             ? true
             : timer.enabled;
@@ -865,11 +1380,15 @@ app.put("/api/device-timers", async (req, res) => {
                 off_time: String(timer.off_time).slice(0, 5)
             }))
         });
+
     } catch (error) {
         try {
             await client.query("ROLLBACK");
         } catch (rollbackError) {
-            console.error("Timer save rollback error:", rollbackError.message);
+            console.error(
+                "Timer save rollback error:",
+                rollbackError.message
+            );
         }
 
         console.error("Save timer settings error:", error.message);
@@ -877,12 +1396,12 @@ app.put("/api/device-timers", async (req, res) => {
         res.status(500).json({
             error: "Could not save timer settings"
         });
+
     } finally {
         client.release();
     }
 });
 
-// Clear all saved timer settings.
 app.delete("/api/device-timers", async (req, res) => {
     try {
         await pool.query("DELETE FROM device_timers");
@@ -890,6 +1409,7 @@ app.delete("/api/device-timers", async (req, res) => {
         res.json({
             message: "All automatic timer settings have been cleared"
         });
+
     } catch (error) {
         console.error("Clear timers error:", error.message);
 
@@ -900,10 +1420,9 @@ app.delete("/api/device-timers", async (req, res) => {
 });
 
 // =====================================================
-// 12. WEBSITE DEVICE COMMANDS
+// 15. WEBSITE DEVICE COMMANDS
 // =====================================================
 
-// Queue a manual command from the website.
 app.post("/api/device-commands", async (req, res) => {
     try {
         const { command } = req.body;
@@ -929,6 +1448,7 @@ app.post("/api/device-commands", async (req, res) => {
             message: "Command queued for the ESP32",
             command: result.rows[0]
         });
+
     } catch (error) {
         console.error("Command queue error:", error.message);
 
@@ -939,7 +1459,7 @@ app.post("/api/device-commands", async (req, res) => {
 });
 
 // =====================================================
-// 13. ESP32 COMMAND POLLING
+// 16. ESP32 COMMAND POLLING
 // =====================================================
 
 app.get(
@@ -988,6 +1508,7 @@ app.get(
                 id: pendingCommand.id,
                 command: pendingCommand.command
             });
+
         } catch (error) {
             if (client) {
                 try {
@@ -1005,6 +1526,7 @@ app.get(
             res.status(500).json({
                 error: "Could not retrieve device command"
             });
+
         } finally {
             if (client) {
                 client.release();
@@ -1014,7 +1536,7 @@ app.get(
 );
 
 // =====================================================
-// 14. START SERVER AND TIMER CHECKER
+// 17. START SERVER AND TIMER CHECKER
 // =====================================================
 
 const PORT = process.env.PORT || 3000;
@@ -1026,11 +1548,12 @@ async function startServer() {
         app.listen(PORT, () => {
             console.log(`Smart Home API running on port ${PORT}`);
             console.log(`Automatic timer timezone: ${TIME_ZONE}`);
+            console.log("Visitor RFID management is enabled.");
         });
 
-        // Check schedules immediately, then every 10 seconds.
         checkAutomaticTimers();
         setInterval(checkAutomaticTimers, 10_000);
+
     } catch (error) {
         console.error(
             "Server initialization failed:",
